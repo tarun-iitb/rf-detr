@@ -18,10 +18,10 @@ We validated the performance of RF-DETR on both Microsoft COCO and the RF100-VL 
 | Model         | COCO (mAP @0.50:0.95) | Domain Adaptability (RF100-VL mAP @0.50) | Total Latency (T4 GPU Latency) |
 |--------------|----------------------|--------------------------------|------------------|
 | **D-FINE-M**     | **55.1**             | N/A                            | 6.3              |
-| **LW-DETR-M**    | 52.5                 | 84.0                           | _6.0_              |
+| **LW-DETR-M**    | 52.5                 | 84.0                           | <ins>6.0</ins>              |
 | **YOLO11m**      | 51.5                 | 84.9                           | **5.7**              |
-| **YOLOv8m**      | 50.6                 | _85.0_                           | 6.3              |
-| **RF-DETR-base** | _53.3_                 | **86.7**                           | _6.0_              |
+| **YOLOv8m**      | 50.6                 | <ins>85.0</ins>                           | 6.3              |
+| **RF-DETR-base** | <ins>53.3</ins>                | **86.7**                           | <ins>6.0</ins>              |
 
 
 <details>
