@@ -1,6 +1,10 @@
 from setuptools import setup, find_packages
+import os
 
-with open('requirements.txt') as f:
+base_dir = os.path.dirname(os.path.abspath(__file__))
+req_file = os.path.join(base_dir, "requirements.txt")
+
+with open("requirements.txt", "r") as f:
     requirements = f.read().splitlines()
 
 with open("README.md", "r", encoding="UTF-8") as fh:
