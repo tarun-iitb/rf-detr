@@ -157,12 +157,13 @@ Our work is built upon [LW-DETR](https://arxiv.org/pdf/2406.03459), [DINOv2](htt
 If you find our work helpful for your research, please consider citing the following BibTeX entry.
 
 ```bibtex
-@misc{rf_detr,
-  author       = {Roboflow, Inc.},
-  title        = {RF-DETR},
+@software{rf-detr,
+  author = {Robinson, Isaac and Robicheaux, Peter and Popov, Matvei},
+  license = {Apache-2.0},
+  title = {RF-DETR},
   howpublished = {\url{https://github.com/roboflow/rf-detr}},
-  year         = {2025},
-  note         = {SOTA Real-Time Object Detection Model}
+  year = {2025},
+  note = {SOTA Real-Time Object Detection Model}
 }
 ```
 
