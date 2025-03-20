@@ -92,7 +92,7 @@ def train_one_epoch(
             loss_dict = criterion(outputs, targets)
             weight_dict = criterion.weight_dict
             losses = sum(
-                loss_dict[k] * weight_dict[k]
+                (1 / args.grad_accum_steps) * loss_dict[k] * weight_dict[k]
                 for k in loss_dict.keys()
                 if k in weight_dict
             )
@@ -103,14 +103,13 @@ def train_one_epoch(
             f"{k}_unscaled": v for k, v in loss_dict_reduced.items()
         }
         loss_dict_reduced_scaled = {
-            k: v * weight_dict[k]
+            k: args.grad_accum_steps * v * weight_dict[k]
             for k, v in loss_dict_reduced.items()
             if k in weight_dict
         }
         losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
 
         loss_value = losses_reduced_scaled.item()
-        loss_value = loss_value / args.grad_accum_steps
 
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
