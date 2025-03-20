@@ -89,7 +89,7 @@ annotated_image = sv.LabelAnnotator().annotate(annotated_image, detections)
 sv.plot_image(annotated_image)
 ```
 
-![rf-detr-coco-results](https://github.com/user-attachments/assets/969ed869-3044-49a3-a00d-7cae18017325)
+![rf-detr-coco-results-2](https://github.com/user-attachments/assets/29109361-aec5-42bc-a6fb-448784f663e4)
 
 ## Training
 
