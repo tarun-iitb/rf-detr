@@ -23,11 +23,10 @@ import onnxsim
 import numpy as np
 from PIL import Image
 
-import util.misc as utils
-import datasets.transforms as T
-from models import build_model
-from main import get_args_parser
-from deploy._onnx import OnnxOptimizer
+import rfdetr.util.misc as utils
+import rfdetr.datasets.transforms as T
+from rfdetr.models import build_model
+from rfdetr.deploy._onnx import OnnxOptimizer
 import re
 import sys
 import wandb
