@@ -40,10 +40,10 @@ Secondly, D-FINE fine-tuning is unavailable, and its performance in domain adapt
 ## Installation
 
 ```bash
-pip install rf-detr
+pip install rfdetr
 ```
 
-The `rf-detr` package will be distributed soon via PyPI.
+The `rfdetr` package will be distributed soon via PyPI.
 
 ## Prediction
 
