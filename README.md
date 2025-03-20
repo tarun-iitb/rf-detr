@@ -3,11 +3,11 @@
 [![colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/roboflow-ai/notebooks/blob/main/notebooks/how-to-finetune-rf-detr-on-detection-dataset.ipynb)
 [![discord](https://img.shields.io/discord/1159501506232451173?logo=discord&label=discord&labelColor=fff&color=5865f2&link=https%3A%2F%2Fdiscord.gg%2FGbfgXGJ8Bk)](https://discord.gg/GbfgXGJ8Bk)
 
-RF-DETR is a real-time object detection model architecture developed by Roboflow, released under the Apache 2.0 license.
+RF-DETR is a real-time, transformer-based object detection model architecture developed by Roboflow and released under the Apache 2.0 license.
 
-RF-DETR is the first real-time model to exceed 60 AP on the [Microsoft COCO](https://cocodataset.org/#home) benchmark. It also achieves state-of-the-art performance on [RF100-VL](https://github.com/roboflow/rf100-vl), a new object detection benchmark introduced alongside RF-DETR—designed to evaluate a model's ability to generalize across diverse domains such as industry, document processing, and agriculture.
+RF-DETR is the first real-time model to exceed 60 AP on the [Microsoft COCO benchmark](https://cocodataset.org/#home) alongside competitive performance at base sizes. It also achieves state-of-the-art performance on [RF100-VL](https://github.com/roboflow/rf100-vl)), an object detection benchmark that measures model domain adaptability to real world problems. RF-DETR is comparable speed to current real-time objection models.
 
-**RF-DETR is small enough to run on the edge, making it an ideal model for enterprise deployments that need both strong accuracy and real-time performance.**
+**RF-DETR is small enough to run on the edge, making it an ideal model for deployments that need both strong accuracy and real-time performance.**
 
 ## Results
 
