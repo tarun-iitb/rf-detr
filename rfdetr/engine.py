@@ -126,9 +126,9 @@ def train_one_epoch(
             scaler.step(optimizer)
             scaler.update()
             lr_scheduler.step()
-        if ema_m is not None:
-            if epoch >= 0:
-                ema_m.update(model)
+            if ema_m is not None:
+                if epoch >= 0:
+                    ema_m.update(model)
         metric_logger.update(
             loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled
         )
