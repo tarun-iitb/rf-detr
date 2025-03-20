@@ -69,7 +69,6 @@ def train_one_epoch(
         }
         for callback in callbacks["on_train_batch_start"]:
             callback(callback_dict)
-        optimizer.zero_grad()
         if "dp" in schedules:
             if args.distributed:
                 model.module.update_drop_path(
@@ -129,6 +128,7 @@ def train_one_epoch(
             if ema_m is not None:
                 if epoch >= 0:
                     ema_m.update(model)
+            optimizer.zero_grad()
         metric_logger.update(
             loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled
         )
@@ -138,6 +138,7 @@ def train_one_epoch(
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
+    optimizer.zero_grad()
 
 
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, args=None):
