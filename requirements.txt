@@ -20,6 +20,6 @@ onnxsim
 onnx_graphsurgeon
 polygraphy
 open_clip_torch
-rf100-vl @ git+https://github.com/roboflow/rf100-vl.git
+rf100vl
 pydantic
 supervision

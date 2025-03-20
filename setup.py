@@ -11,7 +11,7 @@ with open("README.md", "r", encoding="UTF-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="rf-detr",
+    name="rfdetr",
     version="1.0.0",
     description="RF-DETR",
     author="Roboflow, Inc",
