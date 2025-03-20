@@ -13,7 +13,7 @@ RF-DETR is the first real-time model to exceed 60 AP on the [Microsoft COCO benc
 
 We validated the performance of RF-DETR on both Microsoft COCO and the RF100-VL benchmarks.
 
-![rf-detr-coco-rf100-vl-6](https://github.com/user-attachments/assets/41776321-5224-41ac-9f9a-85c4238414cf)
+![rf-detr-coco-rf100-vl-8](https://github.com/user-attachments/assets/99b51d31-1029-4a73-b2a2-675cd45d35f0)
 
 | Model                | params<br><sup>(M) | Latency<br><sup>T4 b1<br>(ms) | mAP<sup>COCO val<br>50-95 | mAP<sup>RF100-VL<br>50 | mAP<sup>RF100-VL<br>50-95 | Config                                                                                                        |
 |----------------------|--------------------|-------------------------------|---------------------------|------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------| 
@@ -88,6 +88,8 @@ annotated_image = sv.LabelAnnotator().annotate(annotated_image, detections)
 
 sv.plot_image(annotated_image)
 ```
+
+![rf-detr-coco-results](https://github.com/user-attachments/assets/969ed869-3044-49a3-a00d-7cae18017325)
 
 ## Training
 
