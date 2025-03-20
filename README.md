@@ -5,7 +5,7 @@
 
 RF-DETR is a real-time, transformer-based object detection model architecture developed by Roboflow and released under the Apache 2.0 license.
 
-RF-DETR is the first real-time model to exceed 60 AP on the [Microsoft COCO benchmark](https://cocodataset.org/#home) alongside competitive performance at base sizes. It also achieves state-of-the-art performance on [RF100-VL](https://github.com/roboflow/rf100-vl)), an object detection benchmark that measures model domain adaptability to real world problems. RF-DETR is comparable speed to current real-time objection models.
+RF-DETR is the first real-time model to exceed 60 AP on the [Microsoft COCO benchmark](https://cocodataset.org/#home) alongside competitive performance at base sizes. It also achieves state-of-the-art performance on [RF100-VL](https://github.com/roboflow/rf100-vl), an object detection benchmark that measures model domain adaptability to real world problems. RF-DETR is comparable speed to current real-time objection models.
 
 **RF-DETR is small enough to run on the edge, making it an ideal model for deployments that need both strong accuracy and real-time performance.**
 
@@ -13,42 +13,21 @@ RF-DETR is the first real-time model to exceed 60 AP on the [Microsoft COCO benc
 
 We validated the performance of RF-DETR on both Microsoft COCO and the RF100-VL benchmarks.
 
-![rf-detr-coco-rf100-vl-8](https://github.com/user-attachments/assets/99b51d31-1029-4a73-b2a2-675cd45d35f0)
+![rf-detr-coco-rf100-vl-8](https://media.roboflow.com/rf-detr/charts.png)
 
-| Model                | params<br><sup>(M) | Latency<br><sup>T4 b1<br>(ms) | mAP<sup>COCO val<br>50-95 | mAP<sup>RF100-VL<br>50 | mAP<sup>RF100-VL<br>50-95 | Config                                                                                                        |
-|----------------------|--------------------|-------------------------------|---------------------------|------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------| 
-| **RF-DETR-L (ours)** | **128.0**          | **22.0**                      | **59.0**                  | **coming soon**       | **coming soon**          | [link](https://github.com/roboflow/r-flow/blob/08f012eb210b1b0e03a5aa7d4e5a4c265cb20b0e/rfdetr/config.py#L26) |
-| **RF-DETR-B (ours)** | **29.0**           | **6.0**                       | **53.3**                  | **86.7**               | **60.2**                  | [link](https://github.com/roboflow/r-flow/blob/08f012eb210b1b0e03a5aa7d4e5a4c265cb20b0e/rfdetr/config.py#L37) |
+| Model         | COCO (mAP @0.50:0.95) | Domain Adaptability (RF100-VL mAP @0.50) | Total Latency (T4 GPU Latency) |
+|--------------|----------------------|--------------------------------|------------------|
+| **D-FINE-M**     | **55.1**             | N/A                            | 6.3              |
+| **LW-DETR-M**    | 52.5                 | 84.0                           | _6.0_              |
+| **YOLO11m**      | 51.5                 | 84.9                           | **5.7**              |
+| **YOLOv8m**      | 50.6                 | _85.0_                           | 6.3              |
+| **RF-DETR-base** | _53.3_                 | **86.7**                           | _6.0_              |
 
-<details>
-<summary>Full benchmark results</summary>
+Of note, Total Latency shown is the GPU latency on a T4 using TensorRT10 FP16 (ms/img) in a concept LW-DETR introduced called "Total Latency." Unlike transformer models, YOLO models conduct NMS following model predictions to provide candidate bounding box predictions to improve accuracy.
 
-| Model                | params<br><sup>(M) | Latency<br><sup>T4 b1<br>(ms) | mAP<sup>COCO val<br>50-95 | mAP<sup>RF100-VL<br>50 | mAP<sup>RF100-VL<br>50-95 | Config                                                                                                        |
-|----------------------|--------------------|-------------------------------|---------------------------|------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------| 
-| **RF-DETR-L (ours)** | **128.0**          | **22.0**                      | **59.0**                  | **coming soon**       | **coming soon**          | [link](https://github.com/roboflow/r-flow/blob/08f012eb210b1b0e03a5aa7d4e5a4c265cb20b0e/rfdetr/config.py#L26) |
-| **RF-DETR-B (ours)** | **29.0**           | **6.0**                       | **53.3**                  | **86.7**               | **60.2**                  | [link](https://github.com/roboflow/r-flow/blob/08f012eb210b1b0e03a5aa7d4e5a4c265cb20b0e/rfdetr/config.py#L37) |
-| LW-DETR-X            | 118.0              | 19.1                          | 58.3                      | -                      | -                         | -                                                                                                             |
-| LW-DETR-L            | 46.8               | 8.8                           | 56.1                      | -                      | -                         | -                                                                                                             |
-| LW-DETR-M            | 28.2               | 5.6                           | 52.5                      | 84.0                   | 57.5                      | -                                                                                                             |
-| LW-DETR-S            | 14.6               | 2.9                           | 48.0                      | 84.4                   | 57.9                      | -                                                                                                             |
-| LW-DETR-T            | 12.1               | 2.0                           | 42.6                      | -                      | -                         | -                                                                                                             |
-| YOLOv12x             | 59.1               | 11.8                          | 55.2                      | -                      | -                         | -                                                                                                             |
-| YOLOv12l             | 26.4               | 6.8                           | 53.7                      | -                      | -                         | -                                                                                                             |
-| YOLOv12m             | 20.2               | 4.9                           | 52.5                      | -                      | -                         | -                                                                                                             |
-| YOLOv12s             | 9.3                | 2.6                           | 48.0                      | -                      | -                         | -                                                                                                             |
-| YOLOv12n             | 2.6                | 1.6                           | 40.6                      | -                      | -                         | -                                                                                                             |
-| YOLO11x              | 56.9               | 11.3                          | 54.7                      | -                      | -                         | -                                                                                                             |
-| YOLO11l              | 25.3               | 6.2                           | 53.4                      | -                      | -                         | -                                                                                                             |
-| YOLO11m              | 20.0               | 4.7                           | 51.5                      | 84.9                   | 59.7                      | -                                                                                                             |
-| YOLO11s              | 9.4                | 2.5                           | 47.0                      | 84.7                   | 59.0                      | -                                                                                                             |
-| YOLO11n              | 2.6                | 1.5                           | 39.5                      | 83.2                   | 57.3                      | -                                                                                                             |
-| YOLOv8x              | 68.2               | 19.1                          | 54.5                      | -                      | -                         | -                                                                                                             |
-| YOLOv8l              | 43.7               | 13.2                          | 53.3                      | -                      | -                         | -                                                                                                             |
-| YOLOv8m              | 28.9               | 10.1                          | 50.6                      | -                      | 59.8                      | -                                                                                                             |
-| YOLOv8s              | 11.1               | 7.0                           | 45.2                      | -                      | 59.2                      | -                                                                                                             |
-| YOLOv8n              | 3.1                | 6.2                           | 37.6                      | -                      | 57.4                      | -                                                                                                             |
+However, NMS results in a slight decrease in speed as bounding box filtering requires computation (the amount varies based on the number of objects in an image). Note most YOLO benchmarks use NMS to report the model's accuracy, yet do not include NMS latency to report the model's corresponding speed for that accuracy. This above benchmarking follows LW-DETR's philosophy of providing a total amount of time to receive a result uniformly applied on the same machine across all models.
 
-</details>
+Secondly, D-FINE fine-tuning is unavailable, and its performance in domain adaptability is, therefore, inaccessible. Its authors [indicate](https://github.com/Peterande/D-FINE?tab=readme-ov-file), "If your categories are very simple, it might lead to overfitting and suboptimal performance." There are also a [number](https://github.com/Peterande/D-FINE/issues/146) [of](https://github.com/Peterande/D-FINE/issues/108) [open](https://github.com/Peterande/D-FINE/issues/169) issues inhibiting fine-tuning. We have opened an [issue](https://github.com/Peterande/D-FINE/issues/214) to aim to benchmark D-FINE with RF100-VL.
 
 ## News
 
@@ -57,12 +36,10 @@ We validated the performance of RF-DETR on both Microsoft COCO and the RF100-VL 
 ## Installation
 
 ```bash
-pip install git+https://github.com/roboflow/rf-detr.git
+pip install rf-detr
 ```
 
-The `rfdetr` package will be distributed soon via PyPI.
-
-</details>
+The `rf-detr` package will be distributed soon via PyPI.
 
 ## Prediction
 
@@ -89,7 +66,7 @@ annotated_image = sv.LabelAnnotator().annotate(annotated_image, detections)
 sv.plot_image(annotated_image)
 ```
 
-![rf-detr-coco-results-2](https://github.com/user-attachments/assets/29109361-aec5-42bc-a6fb-448784f663e4)
+![rf-detr-coco-results-2](https://media.roboflow.com/rf-detr/example_grid.png)
 
 ## Training
 
