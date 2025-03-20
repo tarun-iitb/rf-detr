@@ -116,9 +116,7 @@ class RFDETR:
             image = image.to(self.model.device)
             image = F.normalize(image, self.means, self.stds)
             image = F.resize(image, (self.model.resolution, self.model.resolution))
-            # self.model.model.export()
-            # print(self.model.model.transformer._export)
-            # predictions = self.model.model.forward_export(image[None, :])
+
             predictions = self.model.model.forward(image[None, :])
             bboxes = predictions["pred_boxes"]
             results = self.model.postprocessors["bbox"](
