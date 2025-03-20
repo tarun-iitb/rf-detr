@@ -15,6 +15,9 @@ We validated the performance of RF-DETR on both Microsoft COCO and the RF100-VL 
 
 ![rf-detr-coco-rf100-vl-8](https://media.roboflow.com/rf-detr/charts.png)
 
+<details>
+<summary>Benchmark results</summary>
+
 | Model         | COCO (mAP @0.50:0.95) | Domain Adaptability (RF100-VL mAP @0.50) | Total Latency (T4 GPU Latency) |
 |--------------|----------------------|--------------------------------|------------------|
 | **D-FINE-M**     | **55.1**             | N/A                            | 6.3              |
@@ -24,8 +27,6 @@ We validated the performance of RF-DETR on both Microsoft COCO and the RF100-VL 
 | **RF-DETR-base** | _53.3_                 | **86.7**                           | _6.0_              |
 
 
-<details>
-<summary>Benchmark results</summary>
 Of note, Total Latency shown is the GPU latency on a T4 using TensorRT10 FP16 (ms/img) in a concept LW-DETR introduced called "Total Latency." Unlike transformer models, YOLO models conduct NMS following model predictions to provide candidate bounding box predictions to improve accuracy.
 
 However, NMS results in a slight decrease in speed as bounding box filtering requires computation (the amount varies based on the number of objects in an image). Note most YOLO benchmarks use NMS to report the model's accuracy, yet do not include NMS latency to report the model's corresponding speed for that accuracy. This above benchmarking follows LW-DETR's philosophy of providing a total amount of time to receive a result uniformly applied on the same machine across all models.
