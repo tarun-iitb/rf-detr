@@ -26,12 +26,11 @@ We validated the performance of RF-DETR on both Microsoft COCO and the RF100-VL 
 
 
 <details>
-<summary>Benchmark results</summary>
-Of note, Total Latency shown is the GPU latency on a T4 using TensorRT10 FP16 (ms/img) in a concept LW-DETR introduced called "Total Latency." Unlike transformer models, YOLO models conduct NMS following model predictions to provide candidate bounding box predictions to improve accuracy.
+<summary>Benchmark notes</summary>
 
-However, NMS results in a slight decrease in speed as bounding box filtering requires computation (the amount varies based on the number of objects in an image). Note most YOLO benchmarks use NMS to report the model's accuracy, yet do not include NMS latency to report the model's corresponding speed for that accuracy. This above benchmarking follows LW-DETR's philosophy of providing a total amount of time to receive a result uniformly applied on the same machine across all models.
+The "Total Latency" reported here is measured on a T4 GPU using TensorRT10 FP16 (ms/img) and was introduced by LW-DETR. Unlike transformer-based models, YOLO models perform Non-Maximum Suppression (NMS) after generating predictions to refine bounding box candidates. While NMS boosts accuracy, it also slightly reduces speed due to the additional computation required, which varies with the number of objects in an image. Notably, many YOLO benchmarks include NMS in accuracy measurements but exclude it from speed metrics. By contrast, our benchmarking—following LW-DETR’s approach—factors in NMS latency to provide a uniform measure of the total time needed to obtain a final result across all models on the same hardware.
 
-Secondly, D-FINE fine-tuning is unavailable, and its performance in domain adaptability is, therefore, inaccessible. Its authors [indicate](https://github.com/Peterande/D-FINE?tab=readme-ov-file), "If your categories are very simple, it might lead to overfitting and suboptimal performance." There are also a [number](https://github.com/Peterande/D-FINE/issues/146) [of](https://github.com/Peterande/D-FINE/issues/108) [open](https://github.com/Peterande/D-FINE/issues/169) issues inhibiting fine-tuning. We have opened an [issue](https://github.com/Peterande/D-FINE/issues/214) to aim to benchmark D-FINE with RF100-VL.
+D-FINE’s fine-tuning capability is currently unavailable, making its domain adaptability performance inaccessible. The authors [caution](https://github.com/Peterande/D-FINE) that “if your categories are very simple, it might lead to overfitting and suboptimal performance.” Furthermore, several open issues ([#146](https://github.com/Peterande/D-FINE/issues/108), [#146](https://github.com/Peterande/D-FINE/issues/146), [#169](https://github.com/Peterande/D-FINE/issues/169), [#214](https://github.com/Peterande/D-FINE/issues/214)) currently prevent successful fine-tuning. We have opened an additional issue in hopes of ultimately benchmarking D-FINE with RF100-VL.
 </details>
 
 ## News
