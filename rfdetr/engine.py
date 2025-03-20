@@ -50,7 +50,6 @@ def train_one_epoch(
     print_freq = 10
     start_steps = epoch * num_training_steps_per_epoch
 
-    print("Length of data loader: ", len(data_loader))
     print("Grad accum steps: ", args.grad_accum_steps)
     print("Batch size: ", args.batch_size)
     print("Total batch size: ", args.batch_size * utils.get_world_size() * args.grad_accum_steps)
@@ -58,6 +57,8 @@ def train_one_epoch(
     # Add gradient scaler for AMP
     scaler = GradScaler(enabled=args.amp)
 
+    optimizer.zero_grad()
+    print("LENGTH OF DATA LOADER:", len(data_loader))
     for data_iter_step, (samples, targets) in enumerate(
         metric_logger.log_every(data_loader, print_freq*args.grad_accum_steps, header)
     ):
@@ -109,6 +110,7 @@ def train_one_epoch(
         losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
 
         loss_value = losses_reduced_scaled.item()
+        loss_value = loss_value / args.grad_accum_steps
 
         if not math.isfinite(loss_value):
             print("Loss is {}, stopping training".format(loss_value))
@@ -138,7 +140,6 @@ def train_one_epoch(
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
     return {k: meter.global_avg for k, meter in metric_logger.meters.items()}
-    optimizer.zero_grad()
 
 
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, args=None):
