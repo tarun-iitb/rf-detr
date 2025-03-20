@@ -16,13 +16,13 @@ We validated the performance of RF-DETR on both Microsoft COCO and the RF100-VL 
 
 ![rf-detr-coco-rf100-vl-8](https://media.roboflow.com/rf-detr/charts.png)
 
-| Model         | COCO (mAP @0.50:0.95) | Domain Adaptability (RF100-VL mAP @0.50) | Total Latency (T4 GPU Latency) |
-|--------------|----------------------|--------------------------------|------------------|
-| **D-FINE-M**     | **55.1**             | N/A                            | 6.3              |
-| **LW-DETR-M**    | 52.5                 | 84.0                           | <ins>6.0</ins>              |
-| **YOLO11m**      | 51.5                 | 84.9                           | **5.7**              |
-| **YOLOv8m**      | 50.6                 | <ins>85.0</ins>                           | 6.3              |
-| **RF-DETR-base** | <ins>53.3</ins>                | **86.7**                           | <ins>6.0</ins>              |
+| Model            | mAP<sup>COCO val<br>@0.50:0.95 | mAP<sup>RF100-VL<br>Average @0.50 | Total Latency<br><sup>T4 bs=1<br>(ms) |
+|:----------------:|:------------------------------:|:---------------------------------:|:-------------------------------------:|
+| D-FINE-M         | **55.1**                       | N/A                               | 6.3                                   |
+| LW-DETR-M        | 52.5                           | 84.0                              | <ins>6.0</ins>                        |
+| YOLO11m          | 51.5                           | 84.9                              | **5.7**                               |
+| YOLOv8m          | 50.6                           | <ins>85.0</ins>                   | 6.3                                   |
+| RF-DETR-B        | <ins>53.3</ins>                | **86.7**                          | <ins>6.0</ins>                        |
 
 
 <details>
