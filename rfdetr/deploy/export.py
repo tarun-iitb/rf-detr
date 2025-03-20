@@ -91,7 +91,7 @@ def export_onnx(model, args, input_names, input_tensors, output_names, dynamic_a
     return output_file
 
 
-def onnx_simplify(onnx_dir:str, input_names, input_tensors):
+def onnx_simplify(onnx_dir:str, input_names, input_tensors, args):
     sim_onnx_dir = onnx_dir.replace(".onnx", ".sim.onnx")
     if os.path.isfile(sim_onnx_dir) and not args.force:
         return sim_onnx_dir
@@ -274,7 +274,7 @@ def main(args):
     output_file = export_onnx(model, args, input_names, input_tensors, output_names, dynamic_axes)
     
     if args.simplify:
-        output_file = onnx_simplify(output_file, input_names, input_tensors)
+        output_file = onnx_simplify(output_file, input_names, input_tensors, args)
 
     if args.tensorrt:
         output_file = trtexec(output_file, args)
