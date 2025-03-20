@@ -105,6 +105,7 @@ class LWDETR(nn.Module):
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         self.class_embed.bias.data = torch.ones(num_classes) * bias_value
 
+
     def export(self):
         self._export = True
         self._forward_origin = self.forward
