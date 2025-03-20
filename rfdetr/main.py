@@ -58,15 +58,9 @@ class Model:
             if checkpoint_num_classes != args.num_classes + 1:
                 logger.warning(
                     f"num_classes mismatch: pretrain weights has {checkpoint_num_classes} classes, but your model {args.num_classes} classes\n"
-                    f"dropping pretrain weights detection head."
+                    f"reinitializing detection head with {checkpoint_num_classes} classes"
                 )
-                keys = list(checkpoint['model'].keys())
-                for key in keys:
-                    if "enc_out_class_embed" in key:
-                        checkpoint['model'].pop(key)
-                    if key == "class_embed.bias" or key == "class_embed.weight":
-                        checkpoint['model'].pop(key)
-
+                self.reinitialize_detection_head(checkpoint_num_classes)
             # add support to exclude_keys
             # e.g., when load object365 pretrain, do not load `class_embed.[weight, bias]`
             if args.pretrain_exclude_keys is not None:
