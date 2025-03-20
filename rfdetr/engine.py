@@ -25,6 +25,8 @@ from torch.cuda.amp import autocast, GradScaler
 import torch.nn as nn
 import argparse
 from typing import DefaultDict, List, Callable
+from rfdetr.util.misc import NestedTensor
+
 def train_one_epoch(
     model: torch.nn.Module,
     criterion: torch.nn.Module,
@@ -64,7 +66,7 @@ def train_one_epoch(
     for data_iter_step, (samples, targets) in enumerate(
         metric_logger.log_every(data_loader, print_freq, header)
     ):
-        it = start_steps + data_iter_step + i
+        it = start_steps + data_iter_step
         callback_dict = {
             "step": it,
             "model": model,
@@ -88,13 +90,14 @@ def train_one_epoch(
         for i in range(args.grad_accum_steps):
             start_idx = i * sub_batch_size
             final_idx = start_idx + sub_batch_size
-            samples = samples[start_idx:final_idx].to(device)
-            targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
+            new_samples_tensors = samples.tensors[start_idx:final_idx]
+            mask = samples.mask[start_idx:final_idx]
+            new_samples = NestedTensor(new_samples_tensors, mask).to(device)
+            new_targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
 
-            # Add autocast context manager
             with autocast(enabled=args.amp, dtype=torch.bfloat16):
-                outputs = model(samples, targets)
-                loss_dict = criterion(outputs, targets)
+                outputs = model(new_samples, new_targets)
+                loss_dict = criterion(outputs, new_targets)
                 weight_dict = criterion.weight_dict
                 losses = sum(
                     (1 / args.grad_accum_steps) * loss_dict[k] * weight_dict[k]
