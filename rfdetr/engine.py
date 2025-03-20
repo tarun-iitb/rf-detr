@@ -103,7 +103,7 @@ def train_one_epoch(
             f"{k}_unscaled": v for k, v in loss_dict_reduced.items()
         }
         loss_dict_reduced_scaled = {
-            k: args.grad_accum_steps * v * weight_dict[k]
+            k:  v * weight_dict[k]
             for k, v in loss_dict_reduced.items()
             if k in weight_dict
         }
