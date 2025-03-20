@@ -50,9 +50,9 @@ class RFDETR:
 
     def train(self, **kwargs):
         config = self.get_train_config(**kwargs)
-        self.train_from_config(config)
+        self.train_from_config(config, **kwargs)
 
-    def train_from_config(self, config: TrainConfig):
+    def train_from_config(self, config: TrainConfig, **kwargs):
         with open(
             os.path.join(config.dataset_dir, "train", "_annotations.coco.json"), "r"
         ) as f:
@@ -65,14 +65,23 @@ class RFDETR:
                 f"reinitializing your detection head with {num_classes} classes."
             )
             self.model.reinitialize_detection_head(num_classes)
+        
+        train_config = config.dict()
+        model_config = self.model_config.dict()
+        model_config.pop("num_classes")
+        for k, v in train_config.items():
+            if k in model_config:
+                model_config.pop(k)
+            if k in kwargs:
+                kwargs.pop(k)
+        
+
+        all_kwargs = {**model_config, **train_config, **kwargs, "num_classes": num_classes}
+        
 
         self.model.train(
-            num_classes=num_classes,
-            resolution=self.model_config.resolution,
-            device=self.model_config.device,
-            **config.dict(),
+            **all_kwargs,
             callbacks=self.callbacks,
-            amp=self.model_config.amp,
         )
 
     def get_train_config(self, **kwargs):
