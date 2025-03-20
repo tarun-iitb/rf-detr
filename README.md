@@ -35,7 +35,7 @@ D-FINE’s fine-tuning capability is currently unavailable, making its domain ad
 
 ## News
 
-- `2025/03/20`: We release RF-DETR real-time object detection model. **Code and checkpoint for RF-DETR-large and RF-DETR-base are available!**
+- `2025/03/20`: We release RF-DETR real-time object detection model. **Code and checkpoint for RF-DETR-large and RF-DETR-base are available.**
 
 ## Installation
 
