@@ -12,7 +12,7 @@ with open("README.md", "r", encoding="UTF-8") as fh:
 
 setup(
     name="rfdetr",
-    version="1.0.0",
+    version="1.0.1",
     description="RF-DETR",
     author="Roboflow, Inc",
     author_email="peter@roboflow.com",
