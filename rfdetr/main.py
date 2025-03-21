@@ -23,6 +23,7 @@ import ast
 import copy
 import math
 from pathlib import Path
+from copy import deepcopy
 
 import numpy as np
 import torch
@@ -43,6 +44,7 @@ from typing import DefaultDict, List, Callable
 from logging import getLogger
 import shutil
 from rfdetr.util.files import download_file
+from rfdetr.deploy.export import export_onnx, onnx_simplify, make_infer_image
 import os
 
 logger = getLogger(__name__)
@@ -427,6 +429,67 @@ class Model:
         if best_is_ema:
             self.model = self.ema_m.module
         self.model.eval()
+    
+    def export(self, output_dir="output", infer_dir=None, simplify=False,  backbone_only=False, opset_version=17, verbose=True, force=False, shape=None, batch_size=1, **kwargs):
+        """Export the trained model to ONNX format"""
+        print(f"Exporting model to ONNX format")
+
+        device = self.device
+        model = deepcopy(self.model.to("cpu"))
+        model.to(device)
+
+        os.makedirs(output_dir, exist_ok=True)
+        output_dir = Path(output_dir)
+        if shape is None:
+            shape = (self.resolution, self.resolution)
+        else:
+            if shape[0] % 14 != 0 or shape[1] % 14 != 0:
+                raise ValueError("Shape must be divisible by 14")
+
+        input_tensors = make_infer_image(infer_dir, shape, batch_size, device).to(device)
+        input_names = ['input']
+        output_names = ['features'] if backbone_only else ['dets', 'labels']
+        dynamic_axes = None
+        self.model.eval()
+        with torch.no_grad():
+            if backbone_only:
+                features = model(input_tensors)
+                print(f"PyTorch inference output shape: {features.shape}")
+            else:
+                outputs = model(input_tensors)
+                dets = outputs['pred_boxes']
+                labels = outputs['pred_logits']
+                print(f"PyTorch inference output shapes - Boxes: {dets.shape}, Labels: {labels.shape}")
+        model.cpu()
+        input_tensors = input_tensors.cpu()
+
+        # Export to ONNX
+        output_file = export_onnx(
+            output_dir=output_dir,
+            model=model,
+            input_names=input_names,
+            input_tensors=input_tensors,
+            output_names=output_names,
+            dynamic_axes=dynamic_axes,
+            backbone_only=backbone_only,
+            verbose=verbose,
+            opset_version=opset_version
+        )
+        
+        print(f"Successfully exported ONNX model to: {output_file}")
+
+        if simplify:
+            sim_output_file = onnx_simplify(
+                onnx_dir=output_file,
+                input_names=input_names,
+                input_tensors=input_tensors,
+                force=force
+            )
+            print(f"Successfully simplified ONNX model to: {sim_output_file}")
+        
+        print("ONNX export completed successfully")
+        self.model = self.model.to(device)
+            
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('LWDETR training and evaluation script', parents=[get_args_parser()])

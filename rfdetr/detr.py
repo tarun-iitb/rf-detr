@@ -33,6 +33,9 @@ class RFDETR:
     def train(self, **kwargs):
         config = self.get_train_config(**kwargs)
         self.train_from_config(config, **kwargs)
+    
+    def export(self, **kwargs):
+        self.model.export(**kwargs)
 
     def train_from_config(self, config: TrainConfig, **kwargs):
         with open(

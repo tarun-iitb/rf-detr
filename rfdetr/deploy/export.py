@@ -46,15 +46,15 @@ def run_command_shell(command, dry_run:bool = False) -> int:
         raise
 
 
-def make_infer_image(args, device="cuda"):
-    if args.infer_dir is None:
-        dummy = np.random.randint(0, 256, (args.shape[0], args.shape[1], 3), dtype=np.uint8)
+def make_infer_image(infer_dir, shape, batch_size, device="cuda"):
+    if infer_dir is None:
+        dummy = np.random.randint(0, 256, (shape[0], shape[1], 3), dtype=np.uint8)
         image = Image.fromarray(dummy, mode="RGB")
     else:
-        image = Image.open(args.infer_dir).convert("RGB")
+        image = Image.open(infer_dir).convert("RGB")
 
     transforms = T.Compose([
-        T.SquareResize([args.shape[0]]),
+        T.SquareResize([shape[0]]),
         T.ToTensor(),
         T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
@@ -62,13 +62,12 @@ def make_infer_image(args, device="cuda"):
     inps, _ = transforms(image, None)
     inps = inps.to(device)
     # inps = utils.nested_tensor_from_tensor_list([inps for _ in range(args.batch_size)])
-    inps = torch.stack([inps for _ in range(args.batch_size)])
+    inps = torch.stack([inps for _ in range(batch_size)])
     return inps
 
-
-def export_onnx(model, args, input_names, input_tensors, output_names, dynamic_axes):
-    export_name = "backbone_model" if args.backbone_only else "inference_model"
-    output_file = os.path.join(args.output_dir, f"{export_name}.onnx")
+def export_onnx(output_dir, model, input_names, input_tensors, output_names, dynamic_axes, backbone_only=False, verbose=True, opset_version=17):
+    export_name = "backbone_model" if backbone_only else "inference_model"
+    output_file = os.path.join(output_dir, f"{export_name}.onnx")
     
     # Prepare model for export
     if hasattr(model, "export"):
@@ -83,17 +82,17 @@ def export_onnx(model, args, input_names, input_tensors, output_names, dynamic_a
         export_params=True,
         keep_initializers_as_inputs=False,
         do_constant_folding=True,
-        verbose=args.verbose,
-        opset_version=args.opset_version,
+        verbose=verbose,
+        opset_version=opset_version,
         dynamic_axes=dynamic_axes)
 
     print(f'\nSuccessfully exported ONNX model: {output_file}')
     return output_file
 
 
-def onnx_simplify(onnx_dir:str, input_names, input_tensors, args):
+def onnx_simplify(onnx_dir:str, input_names, input_tensors, force=False):
     sim_onnx_dir = onnx_dir.replace(".onnx", ".sim.onnx")
-    if os.path.isfile(sim_onnx_dir) and not args.force:
+    if os.path.isfile(sim_onnx_dir) and not force:
         return sim_onnx_dir
     
     if isinstance(input_tensors, torch.Tensor):
@@ -105,7 +104,6 @@ def onnx_simplify(onnx_dir:str, input_names, input_tensors, args):
     opt.common_opt()
     opt.info('Model: optimized')
     opt.save_onnx(sim_onnx_dir)
-    return sim_onnx_dir
     input_dict = {name: tensor.detach().cpu().numpy() for name, tensor in zip(input_names, input_tensors)}
     model_opt, check_ok = onnxsim.simplify(
         onnx_dir,
