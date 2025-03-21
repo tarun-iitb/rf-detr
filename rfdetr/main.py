@@ -180,9 +180,9 @@ class Model:
             sampler_train = torch.utils.data.RandomSampler(dataset_train)
             sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 
-        batch_size = args.batch_size * args.grad_accum_steps
+        effective_batch_size = args.batch_size * args.grad_accum_steps
         batch_sampler_train = torch.utils.data.BatchSampler(
-            sampler_train, batch_size, drop_last=True)
+            sampler_train, effective_batch_size, drop_last=True)
 
         data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                     collate_fn=utils.collate_fn, num_workers=args.num_workers)
@@ -234,7 +234,7 @@ class Model:
             return
         
         # for drop
-        total_batch_size = batch_size * utils.get_world_size()
+        total_batch_size = effective_batch_size * utils.get_world_size()
         num_training_steps_per_epoch = (len(dataset_train) + total_batch_size - 1) // total_batch_size
         schedules = {}
         if args.dropout > 0:
@@ -265,7 +265,7 @@ class Model:
             criterion.train()
             train_stats = train_one_epoch(
                 model, criterion, lr_scheduler, data_loader_train, optimizer, device, epoch,
-                batch_size, args.clip_max_norm, ema_m=self.ema_m, schedules=schedules, 
+                effective_batch_size, args.clip_max_norm, ema_m=self.ema_m, schedules=schedules, 
                 num_training_steps_per_epoch=num_training_steps_per_epoch,
                 vit_encoder_num_layers=args.vit_encoder_num_layers, args=args, callbacks=callbacks)
             train_epoch_time = time.time() - epoch_start_time
