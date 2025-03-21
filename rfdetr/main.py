@@ -57,8 +57,8 @@ class Model:
             checkpoint_num_classes = checkpoint['model']['class_embed.bias'].shape[0]
             if checkpoint_num_classes != args.num_classes + 1:
                 logger.warning(
-                    f"num_classes mismatch: pretrain weights has {checkpoint_num_classes} classes, but your model {args.num_classes} classes\n"
-                    f"reinitializing detection head with {checkpoint_num_classes} classes"
+                    f"num_classes mismatch: pretrain weights has {checkpoint_num_classes - 1} classes, but your model has {args.num_classes} classes\n"
+                    f"reinitializing detection head with {checkpoint_num_classes - 1} classes"
                 )
                 self.reinitialize_detection_head(checkpoint_num_classes)
             # add support to exclude_keys
