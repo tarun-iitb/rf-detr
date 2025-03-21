@@ -89,13 +89,13 @@ def train_one_epoch(
                 model.update_dropout(schedules["do"][it])
 
         for i in range(args.grad_accum_steps):
-            with autocast(enabled=args.amp, dtype=torch.bfloat16):
-                start_idx = i * sub_batch_size
-                final_idx = start_idx + sub_batch_size
-                new_samples_tensors = samples.tensors[start_idx:final_idx]
-                new_samples = NestedTensor(new_samples_tensors, samples.mask[start_idx:final_idx])
-                new_targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
+            start_idx = i * sub_batch_size
+            final_idx = start_idx + sub_batch_size
+            new_samples_tensors = samples.tensors[start_idx:final_idx]
+            new_samples = NestedTensor(new_samples_tensors, samples.mask[start_idx:final_idx])
+            new_targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
 
+            with autocast(enabled=args.amp, dtype=torch.bfloat16):
                 outputs = model(new_samples, new_targets)
                 loss_dict = criterion(outputs, new_targets)
                 weight_dict = criterion.weight_dict
@@ -130,6 +130,7 @@ def train_one_epoch(
         if max_norm > 0:
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+
         scaler.step(optimizer)
         scaler.update()
         lr_scheduler.step()
