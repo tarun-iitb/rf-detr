@@ -64,7 +64,6 @@ def train_one_epoch(
     assert batch_size % args.grad_accum_steps == 0
     sub_batch_size = batch_size // args.grad_accum_steps
     print("LENGTH OF DATA LOADER:", len(data_loader))
-    print("HI")
     for data_iter_step, (samples, targets) in enumerate(
         metric_logger.log_every(data_loader, print_freq, header)
     ):
@@ -90,14 +89,12 @@ def train_one_epoch(
                 model.update_dropout(schedules["do"][it])
 
         for i in range(args.grad_accum_steps):
-
             with autocast(enabled=args.amp, dtype=torch.bfloat16):
-                with torch.no_grad():
-                    start_idx = i * sub_batch_size
-                    final_idx = start_idx + sub_batch_size
-                    new_samples_tensors = samples.tensors[start_idx:final_idx]
-                    new_samples = nested_tensor_from_tensor_list(new_samples_tensors)
-                    new_targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
+                start_idx = i * sub_batch_size
+                final_idx = start_idx + sub_batch_size
+                new_samples_tensors = samples.tensors[start_idx:final_idx]
+                new_samples = NestedTensor(new_samples_tensors, samples.mask[start_idx:final_idx])
+                new_targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
 
                 outputs = model(new_samples, new_targets)
                 loss_dict = criterion(outputs, new_targets)
@@ -108,27 +105,27 @@ def train_one_epoch(
                     if k in weight_dict
                 )
 
-            # reduce losses over all GPUs for logging purposes
-            loss_dict_reduced = utils.reduce_dict(loss_dict)
-            loss_dict_reduced_unscaled = {
-                f"{k}_unscaled": v for k, v in loss_dict_reduced.items()
-            }
-            loss_dict_reduced_scaled = {
-                k:  v * weight_dict[k]
-                for k, v in loss_dict_reduced.items()
-                if k in weight_dict
-            }
-            losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
 
-            loss_value = losses_reduced_scaled.item()
-
-            if not math.isfinite(loss_value):
-                print("Loss is {}, stopping training".format(loss_value))
-                print(loss_dict_reduced)
-                sys.exit(1)
-
-        # Modify backward pass to use scaler
             scaler.scale(losses).backward()
+
+        # reduce losses over all GPUs for logging purposes
+        loss_dict_reduced = utils.reduce_dict(loss_dict)
+        loss_dict_reduced_unscaled = {
+            f"{k}_unscaled": v for k, v in loss_dict_reduced.items()
+        }
+        loss_dict_reduced_scaled = {
+            k:  v * weight_dict[k]
+            for k, v in loss_dict_reduced.items()
+            if k in weight_dict
+        }
+        losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
+
+        loss_value = losses_reduced_scaled.item()
+
+        if not math.isfinite(loss_value):
+            print("Loss is {}, stopping training".format(loss_value))
+            print(loss_dict_reduced)
+            sys.exit(1)
 
         if max_norm > 0:
             scaler.unscale_(optimizer)
