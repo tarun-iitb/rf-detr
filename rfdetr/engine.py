@@ -93,6 +93,7 @@ def train_one_epoch(
             final_idx = start_idx + sub_batch_size
             new_samples_tensors = samples.tensors[start_idx:final_idx]
             new_samples = NestedTensor(new_samples_tensors, samples.mask[start_idx:final_idx])
+            new_samples = new_samples.to(device)
             new_targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
 
             with autocast(enabled=args.amp, dtype=torch.bfloat16):
