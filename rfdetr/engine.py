@@ -26,6 +26,7 @@ import torch.nn as nn
 import argparse
 from typing import DefaultDict, List, Callable
 from rfdetr.util.misc import NestedTensor
+from rfdetr.util.misc import nested_tensor_from_tensor_list
 
 def train_one_epoch(
     model: torch.nn.Module,
@@ -63,6 +64,7 @@ def train_one_epoch(
     assert batch_size % args.grad_accum_steps == 0
     sub_batch_size = batch_size // args.grad_accum_steps
     print("LENGTH OF DATA LOADER:", len(data_loader))
+    print("HI")
     for data_iter_step, (samples, targets) in enumerate(
         metric_logger.log_every(data_loader, print_freq, header)
     ):
@@ -88,11 +90,11 @@ def train_one_epoch(
                 model.update_dropout(schedules["do"][it])
 
         for i in range(args.grad_accum_steps):
+
             start_idx = i * sub_batch_size
             final_idx = start_idx + sub_batch_size
             new_samples_tensors = samples.tensors[start_idx:final_idx]
-            mask = samples.mask[start_idx:final_idx]
-            new_samples = NestedTensor(new_samples_tensors, mask).to(device)
+            new_samples = nested_tensor_from_tensor_list(new_samples_tensors)
             new_targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
 
             with autocast(enabled=args.amp, dtype=torch.bfloat16):
@@ -133,10 +135,10 @@ def train_one_epoch(
         scaler.step(optimizer)
         scaler.update()
         lr_scheduler.step()
+        optimizer.zero_grad()
         if ema_m is not None:
             if epoch >= 0:
                 ema_m.update(model)
-        optimizer.zero_grad()
         metric_logger.update(
             loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled
         )
