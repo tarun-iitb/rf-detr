@@ -1,11 +1,8 @@
 import os
 import json
-import requests
-from tqdm import tqdm
 
 from rfdetr.config import RFDETRBaseConfig, RFDETRLargeConfig, TrainConfig, ModelConfig
-from rfdetr.main import Model
-from rfdetr.util.files import download_file
+from rfdetr.main import Model, download_pretrain_weights
 from functools import partial
 from logging import getLogger
 import torch
@@ -17,13 +14,6 @@ from collections import defaultdict
 import supervision as sv
 
 logger = getLogger(__name__)
-HOSTED_MODELS = {
-    "rf-detr-base.pth": "https://storage.googleapis.com/rfdetr/rf-detr-base-coco.pth",
-    # below is a less converged model that may be better for finetuning but worse for inference
-    "rf-detr-base-2.pth": "https://storage.googleapis.com/rfdetr/rf-detr-base-2.pth",
-    "rf-detr-large.pth": "https://storage.googleapis.com/rfdetr/rf-detr-large.pth"
-}
-
 class RFDETR:
     means = [0.485, 0.456, 0.406]
     stds = [0.229, 0.224, 0.225]
@@ -35,15 +25,7 @@ class RFDETR:
         self.callbacks = defaultdict(list)
 
     def maybe_download_pretrain_weights(self):
-        if self.model_config.pretrain_weights in HOSTED_MODELS:
-            if not os.path.exists(self.model_config.pretrain_weights):
-                logger.info(
-                    f"Downloading pretrained weights for {self.model_config.pretrain_weights}"
-                )
-                download_file(
-                    HOSTED_MODELS[self.model_config.pretrain_weights],
-                    self.model_config.pretrain_weights,
-                )
+        download_pretrain_weights(self.model_config.pretrain_weights)
 
     def get_model_config(self, **kwargs):
         return ModelConfig(**kwargs)

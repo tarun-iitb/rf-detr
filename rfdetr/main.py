@@ -42,8 +42,28 @@ from peft import LoraConfig, get_peft_model
 from typing import DefaultDict, List, Callable
 from logging import getLogger
 import shutil
+from rfdetr.util.files import download_file
+import os
 
 logger = getLogger(__name__)
+
+HOSTED_MODELS = {
+    "rf-detr-base.pth": "https://storage.googleapis.com/rfdetr/rf-detr-base-coco.pth",
+    # below is a less converged model that may be better for finetuning but worse for inference
+    "rf-detr-base-2.pth": "https://storage.googleapis.com/rfdetr/rf-detr-base-2.pth",
+    "rf-detr-large.pth": "https://storage.googleapis.com/rfdetr/rf-detr-large.pth"
+}
+
+def download_pretrain_weights(pretrain_weights: str, redownload=False):
+    if pretrain_weights in HOSTED_MODELS:
+        if redownload or not os.path.exists(pretrain_weights):
+            logger.info(
+                f"Downloading pretrained weights for {pretrain_weights}"
+            )
+            download_file(
+                HOSTED_MODELS[pretrain_weights],
+                pretrain_weights,
+            )
 
 class Model:
     def __init__(self, **kwargs):
@@ -53,7 +73,15 @@ class Model:
         self.device = torch.device(args.device)
         if args.pretrain_weights is not None:
             print("Loading pretrain weights")
-            checkpoint = torch.load(args.pretrain_weights, map_location='cpu', weights_only=False)
+            try:
+                checkpoint = torch.load(args.pretrain_weights, map_location='cpu', weights_only=False)
+            except Exception as e:
+                print(f"Failed to load pretrain weights: {e}")
+                # re-download weights if they are corrupted
+                print("Failed to load pretrain weights, re-downloading")
+                download_pretrain_weights(args.pretrain_weights, redownload=True)
+                checkpoint = torch.load(args.pretrain_weights, map_location='cpu', weights_only=False)
+
             checkpoint_num_classes = checkpoint['model']['class_embed.bias'].shape[0]
             if checkpoint_num_classes != args.num_classes + 1:
                 logger.warning(
