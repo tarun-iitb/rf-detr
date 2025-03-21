@@ -57,8 +57,8 @@ class Model:
             checkpoint_num_classes = checkpoint['model']['class_embed.bias'].shape[0]
             if checkpoint_num_classes != args.num_classes + 1:
                 logger.warning(
-                    f"num_classes mismatch: pretrain weights has {checkpoint_num_classes} classes, but your model {args.num_classes} classes\n"
-                    f"reinitializing detection head with {checkpoint_num_classes} classes"
+                    f"num_classes mismatch: pretrain weights has {checkpoint_num_classes - 1} classes, but your model has {args.num_classes} classes\n"
+                    f"reinitializing detection head with {checkpoint_num_classes - 1} classes"
                 )
                 self.reinitialize_detection_head(checkpoint_num_classes)
             # add support to exclude_keys
@@ -180,8 +180,9 @@ class Model:
             sampler_train = torch.utils.data.RandomSampler(dataset_train)
             sampler_val = torch.utils.data.SequentialSampler(dataset_val)
 
+        effective_batch_size = args.batch_size * args.grad_accum_steps
         batch_sampler_train = torch.utils.data.BatchSampler(
-            sampler_train, args.batch_size, drop_last=True)
+            sampler_train, effective_batch_size, drop_last=True)
 
         data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                     collate_fn=utils.collate_fn, num_workers=args.num_workers)
@@ -233,7 +234,7 @@ class Model:
             return
         
         # for drop
-        total_batch_size = args.batch_size * utils.get_world_size()
+        total_batch_size = effective_batch_size * utils.get_world_size()
         num_training_steps_per_epoch = (len(dataset_train) + total_batch_size - 1) // total_batch_size
         schedules = {}
         if args.dropout > 0:
@@ -264,7 +265,7 @@ class Model:
             criterion.train()
             train_stats = train_one_epoch(
                 model, criterion, lr_scheduler, data_loader_train, optimizer, device, epoch,
-                args.clip_max_norm, ema_m=self.ema_m, schedules=schedules, 
+                effective_batch_size, args.clip_max_norm, ema_m=self.ema_m, schedules=schedules, 
                 num_training_steps_per_epoch=num_training_steps_per_epoch,
                 vit_encoder_num_layers=args.vit_encoder_num_layers, args=args, callbacks=callbacks)
             train_epoch_time = time.time() - epoch_start_time

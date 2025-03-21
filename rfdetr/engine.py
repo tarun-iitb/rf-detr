@@ -25,6 +25,9 @@ from torch.cuda.amp import autocast, GradScaler
 import torch.nn as nn
 import argparse
 from typing import DefaultDict, List, Callable
+from rfdetr.util.misc import NestedTensor
+from rfdetr.util.misc import nested_tensor_from_tensor_list
+
 def train_one_epoch(
     model: torch.nn.Module,
     criterion: torch.nn.Module,
@@ -33,6 +36,7 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
     epoch: int,
+    batch_size: int,
     max_norm: float = 0,
     ema_m: torch.nn.Module = None,
     schedules: dict = {},
@@ -51,16 +55,17 @@ def train_one_epoch(
     start_steps = epoch * num_training_steps_per_epoch
 
     print("Grad accum steps: ", args.grad_accum_steps)
-    print("Batch size: ", args.batch_size)
-    print("Total batch size: ", args.batch_size * utils.get_world_size() * args.grad_accum_steps)
+    print("Total batch size: ", batch_size * utils.get_world_size())
 
     # Add gradient scaler for AMP
     scaler = GradScaler(enabled=args.amp)
 
     optimizer.zero_grad()
+    assert batch_size % args.grad_accum_steps == 0
+    sub_batch_size = batch_size // args.grad_accum_steps
     print("LENGTH OF DATA LOADER:", len(data_loader))
     for data_iter_step, (samples, targets) in enumerate(
-        metric_logger.log_every(data_loader, print_freq*args.grad_accum_steps, header)
+        metric_logger.log_every(data_loader, print_freq, header)
     ):
         it = start_steps + data_iter_step
         callback_dict = {
@@ -83,19 +88,26 @@ def train_one_epoch(
             else:
                 model.update_dropout(schedules["do"][it])
 
-        samples = samples.to(device)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
+        for i in range(args.grad_accum_steps):
+            start_idx = i * sub_batch_size
+            final_idx = start_idx + sub_batch_size
+            new_samples_tensors = samples.tensors[start_idx:final_idx]
+            new_samples = NestedTensor(new_samples_tensors, samples.mask[start_idx:final_idx])
+            new_samples = new_samples.to(device)
+            new_targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
 
-        # Add autocast context manager
-        with autocast(enabled=args.amp, dtype=torch.bfloat16):
-            outputs = model(samples, targets)
-            loss_dict = criterion(outputs, targets)
-            weight_dict = criterion.weight_dict
-            losses = sum(
-                (1 / args.grad_accum_steps) * loss_dict[k] * weight_dict[k]
-                for k in loss_dict.keys()
-                if k in weight_dict
-            )
+            with autocast(enabled=args.amp, dtype=torch.bfloat16):
+                outputs = model(new_samples, new_targets)
+                loss_dict = criterion(outputs, new_targets)
+                weight_dict = criterion.weight_dict
+                losses = sum(
+                    (1 / args.grad_accum_steps) * loss_dict[k] * weight_dict[k]
+                    for k in loss_dict.keys()
+                    if k in weight_dict
+                )
+
+
+            scaler.scale(losses).backward()
 
         # reduce losses over all GPUs for logging purposes
         loss_dict_reduced = utils.reduce_dict(loss_dict)
@@ -103,7 +115,7 @@ def train_one_epoch(
             f"{k}_unscaled": v for k, v in loss_dict_reduced.items()
         }
         loss_dict_reduced_scaled = {
-            k: args.grad_accum_steps * v * weight_dict[k]
+            k:  v * weight_dict[k]
             for k, v in loss_dict_reduced.items()
             if k in weight_dict
         }
@@ -116,20 +128,17 @@ def train_one_epoch(
             print(loss_dict_reduced)
             sys.exit(1)
 
-        # Modify backward pass to use scaler
-        scaler.scale(losses).backward()
-        should_step = (data_iter_step + 1) % args.grad_accum_steps == 0
-        if should_step:
-            if max_norm > 0:
-                scaler.unscale_(optimizer)
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
-            scaler.step(optimizer)
-            scaler.update()
-            lr_scheduler.step()
-            if ema_m is not None:
-                if epoch >= 0:
-                    ema_m.update(model)
-            optimizer.zero_grad()
+        if max_norm > 0:
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm)
+
+        scaler.step(optimizer)
+        scaler.update()
+        lr_scheduler.step()
+        optimizer.zero_grad()
+        if ema_m is not None:
+            if epoch >= 0:
+                ema_m.update(model)
         metric_logger.update(
             loss=loss_value, **loss_dict_reduced_scaled, **loss_dict_reduced_unscaled
         )
