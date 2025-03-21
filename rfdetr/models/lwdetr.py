@@ -101,20 +101,18 @@ class LWDETR(nn.Module):
 
     def reinitialize_detection_head(self, num_classes):
         # Create new classification head
-        self.class_embed = nn.Linear(self.transformer.d_model, num_classes)
+        del self.class_embed
+        self.add_module("class_embed", nn.Linear(self.transformer.d_model, num_classes))
         
         # Initialize with focal loss bias adjustment
         prior_prob = 0.01
         bias_value = -math.log((1 - prior_prob) / prior_prob)
         self.class_embed.bias.data = torch.ones(num_classes) * bias_value
-        
-        # Initialize weights to zero (similar to original init in __init__)
-        nn.init.constant_(self.class_embed.weight.data, 0)
-        
-        # If two-stage mode is enabled, also update encoder class embed modules
+
         if self.two_stage:
-            self.transformer.enc_out_class_embed = nn.ModuleList(
-                [copy.deepcopy(self.class_embed) for _ in range(self.group_detr)])
+            del self.transformer.enc_out_class_embed
+            self.transformer.add_module("enc_out_class_embed", nn.ModuleList(
+                [copy.deepcopy(self.class_embed) for _ in range(self.group_detr)]))
 
 
     def export(self):
