@@ -61,7 +61,7 @@ def train_one_epoch(
     print("Total batch size: ", batch_size * utils.get_world_size())
 
     # Add gradient scaler for AMP
-    scaler = GradScaler('cuda', enabled=args.amp)
+    scaler = GradScaler(enabled=args.amp)
 
     optimizer.zero_grad()
     assert batch_size % args.grad_accum_steps == 0
@@ -99,7 +99,7 @@ def train_one_epoch(
             new_samples = new_samples.to(device)
             new_targets = [{k: v.to(device) for k, v in t.items()} for t in targets[start_idx:final_idx]]
 
-            with autocast('cuda', enabled=args.amp, dtype=torch.bfloat16):
+            with autocast(enabled=args.amp, dtype=torch.bfloat16):
                 outputs = model(new_samples, new_targets)
                 loss_dict = criterion(outputs, new_targets)
                 weight_dict = criterion.weight_dict
