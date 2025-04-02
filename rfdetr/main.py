@@ -27,6 +27,7 @@ from copy import deepcopy
 
 import numpy as np
 import torch
+import torch._dynamo
 from torch.utils.data import DataLoader, DistributedSampler
 
 from rfdetr.datasets import build_dataset, get_coco_api_from_dataset
@@ -133,6 +134,10 @@ class Model:
             self.model.backbone[0].encoder = get_peft_model(self.model.backbone[0].encoder, lora_config)
         self.model = self.model.to(self.device)
         self.criterion, self.postprocessors = build_criterion_and_postprocessors(args)
+
+        # if args.compile_model:
+        #     print("Compiling model")
+        #     self.model = torch.compile(self.model)
     
     def reinitialize_detection_head(self, num_classes):
         self.model.reinitialize_detection_head(num_classes)
@@ -228,6 +233,8 @@ class Model:
 
 
         output_dir = Path(args.output_dir)
+
+        print(f"logging to {output_dir}")
         
         if  utils.is_main_process():
             print("Get benchmark")
@@ -273,6 +280,11 @@ class Model:
                 args.drop_path, args.epochs, num_training_steps_per_epoch,
                 args.cutoff_epoch, args.drop_mode, args.drop_schedule)
             print("Min DP = %.7f, Max DP = %.7f" % (min(schedules['dp']), max(schedules['dp'])))
+        
+        if args.compile_model:
+            print("Wrapping model with torch.compile")
+            torch._dynamo.config.suppress_errors = True
+            model = torch.compile(model)
 
         print("Start training")
         start_time = time.time()
@@ -857,6 +869,7 @@ def populate_args(
     fp16_eval=False,
     
     # Custom args
+    compile_model=False,
     encoder_only=False,
     backbone_only=False,
     resolution=640,
@@ -959,6 +972,7 @@ def populate_args(
         expanded_scales=expanded_scales,
         warmup_epochs=warmup_epochs,
         lr_scheduler=lr_scheduler,
+        compile_model=compile_model,
         lr_min_factor=lr_min_factor,
         **extra_kwargs
     )

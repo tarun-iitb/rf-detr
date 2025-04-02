@@ -22,6 +22,7 @@ class ModelConfig(BaseModel):
     device: Literal["cpu", "cuda", "mps"] = DEVICE
     resolution: int = 560
     group_detr: int = 13
+    compile_model: bool = False
 
 class RFDETRBaseConfig(ModelConfig):
     encoder: Literal["dinov2_windowed_small", "dinov2_windowed_base"] = "dinov2_windowed_small"
@@ -70,3 +71,4 @@ class TrainConfig(BaseModel):
     use_ema: bool = True
     num_workers: int = 2
     weight_decay: float = 1e-4
+    compile_model: bool = False
