@@ -95,8 +95,8 @@ class Model:
             checkpoint_num_classes = checkpoint['model']['class_embed.bias'].shape[0]
             if checkpoint_num_classes != args.num_classes + 1:
                 logger.warning(
-                    f"num_classes mismatch: pretrain weights has {checkpoint_num_classes - 1} classes, but your model has {args.num_classes} classes\n"
-                    f"reinitializing detection head with {checkpoint_num_classes - 1} classes"
+                    f"Pretrained weights have {checkpoint_num_classes - 1} classes, but model configured for {args.num_classes} classes. "
+                    f"Reinitializing detection head to match pretrained weights ({checkpoint_num_classes - 1} classes)."
                 )
                 self.reinitialize_detection_head(checkpoint_num_classes)
             # add support to exclude_keys
@@ -200,6 +200,7 @@ class Model:
 
         dataset_train = build_dataset(image_set='train', args=args, resolution=args.resolution)
         dataset_val = build_dataset(image_set='val', args=args, resolution=args.resolution)
+        logger.info(f"Dataset loaded: {len(dataset_train)} training samples, {len(dataset_val)} validation samples")
 
         # for cosine annealing, calculate total training steps and warmup steps
         total_batch_size_for_lr = args.batch_size * get_world_size() * args.grad_accum_steps

@@ -57,9 +57,9 @@ class RFDETR:
             self.model.class_names = class_names
 
         if self.model_config.num_classes != num_classes:
-            logger.warning(
-                f"num_classes mismatch: model has {self.model_config.num_classes} classes, but your dataset has {num_classes} classes\n"
-                f"reinitializing your detection head with {num_classes} classes."
+            logger.info(
+                f"Model configured with {self.model_config.num_classes} classes, dataset contains {num_classes} classes. "
+                f"Reinitializing detection head to match dataset ({num_classes} classes)."
             )
             self.model.reinitialize_detection_head(num_classes)
         

@@ -36,7 +36,7 @@ from typing import DefaultDict, List, Callable
 from rfdetr.util.misc import NestedTensor
 
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 def get_autocast_args(args):
