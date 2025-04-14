@@ -24,10 +24,10 @@ import wandb
 from PIL import Image
 
 import rfdetr.datasets.transforms as T
-import rfdetr.util.misc as utils
 from rfdetr.deploy._onnx import OnnxOptimizer
 from rfdetr.models import build_model
 from rfdetr.util.logger import get_logger
+from rfdetr.util.misc import get_sha, get_version, get_rank
 
 logger = get_logger()
 
@@ -204,8 +204,14 @@ def no_batch_norm(model):
             raise ValueError("BatchNorm2d found in the model. Please remove it.")
 
 def main(args):
-    logger.info("git:\n  {}\n".format(utils.get_sha()))
-    logger.info(args)
+    git_info = get_sha()
+    if git_info:
+        logger.info(
+            f"Running from git repository: {git_info['sha']} ({git_info['branch']}, {git_info['status']})")
+    else:
+        version = get_version()
+        logger.info(f"Running RF-DETR version: {version or 'unknown'}")
+    logger.info(f"Export config: {vars(args)}")
     # convert device to device_id
     if args.device == 'cuda':
         device_id = "0"
@@ -221,7 +227,7 @@ def main(args):
     os.environ["CUDA_VISIBLE_DEVICES"] = device_id
 
     # fix the seed for reproducibility
-    seed = args.seed + utils.get_rank()
+    seed = args.seed + get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
