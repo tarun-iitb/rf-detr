@@ -8,7 +8,7 @@
 import json
 import os
 from collections import defaultdict
-from logging import getLogger
+from rfdetr.util.logger import get_logger
 from typing import Union, List
 
 import numpy as np
@@ -22,7 +22,8 @@ from rfdetr.main import Model, download_pretrain_weights
 from rfdetr.util.metrics import MetricsPlotSink, MetricsTensorBoardSink, MetricsWandBSink
 from rfdetr.util.coco_classes import COCO_CLASSES
 
-logger = getLogger(__name__)
+logger = get_logger()
+
 class RFDETR:
     means = [0.485, 0.456, 0.406]
     stds = [0.229, 0.224, 0.225]

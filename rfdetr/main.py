@@ -27,7 +27,6 @@ import random
 import shutil
 import time
 from copy import deepcopy
-from logging import getLogger
 from pathlib import Path
 from typing import DefaultDict, List, Callable
 
@@ -44,13 +43,14 @@ from rfdetr.util.benchmark import benchmark
 from rfdetr.util.drop_scheduler import drop_scheduler
 from rfdetr.util.files import download_file
 from rfdetr.util.get_param_dicts import get_param_dict
+from rfdetr.util.logger import get_logger
 from rfdetr.util.utils import ModelEma, BestMetricHolder, clean_state_dict
 
 if str(os.environ.get("USE_FILE_SYSTEM_SHARING", "False")).lower() in ["true", "1"]:
     import torch.multiprocessing
     torch.multiprocessing.set_sharing_strategy('file_system')
 
-logger = getLogger(__name__)
+logger = get_logger()
 
 HOSTED_MODELS = {
     "rf-detr-base.pth": "https://storage.googleapis.com/rfdetr/rf-detr-base-coco.pth",
@@ -77,13 +77,13 @@ class Model:
         self.model = build_model(args)
         self.device = torch.device(args.device)
         if args.pretrain_weights is not None:
-            print("Loading pretrain weights")
+            logger.info("Loading pretrain weights")
             try:
                 checkpoint = torch.load(args.pretrain_weights, map_location='cpu', weights_only=False)
             except Exception as e:
-                print(f"Failed to load pretrain weights: {e}")
+                logger.error(f"Failed to load pretrain weights: {e}")
                 # re-download weights if they are corrupted
-                print("Failed to load pretrain weights, re-downloading")
+                logger.info("Failed to load pretrain weights, re-downloading")
                 download_pretrain_weights(args.pretrain_weights, redownload=True)
                 checkpoint = torch.load(args.pretrain_weights, map_location='cpu', weights_only=False)
 
@@ -114,7 +114,7 @@ class Model:
                             checkpoint['model'][modify_key_to_load]
                         )
                     except:
-                        print(f"Failed to load {modify_key_to_load}, deleting from checkpoint")
+                        logger.error(f"Failed to load {modify_key_to_load}, deleting from checkpoint")
                         checkpoint['model'].pop(modify_key_to_load)
 
             # we may want to resume training with a smaller number of groups for group detr
@@ -127,7 +127,7 @@ class Model:
             self.model.load_state_dict(checkpoint['model'], strict=False)
 
         if args.backbone_lora:
-            print("Applying LORA to backbone")
+            logger.info("Applying LORA to backbone")
             lora_config = LoraConfig(
                 r=16,
                 lora_alpha=16,
@@ -148,7 +148,7 @@ class Model:
 
     def request_early_stop(self):
         self.stop_early = True
-        print("Early stopping requested, will complete current epoch and stop")
+        logger.info("Early stopping requested, will complete current epoch and stop")
 
     def train(self, callbacks: DefaultDict[str, List[Callable]], **kwargs):
         currently_supported_callbacks = ["on_fit_epoch_end", "on_train_batch_start", "on_train_end"]
@@ -160,8 +160,8 @@ class Model:
                 )
         args = populate_args(**kwargs)
         utils.init_distributed_mode(args)
-        print("git:\n  {}\n".format(utils.get_sha()))
-        print(args)
+        logger.info("git:\n  {}\n".format(utils.get_sha()))
+        logger.info(args)
         device = torch.device(args.device)
         
         # fix the seed for reproducibility
@@ -182,7 +182,7 @@ class Model:
             model_without_ddp = model.module
 
         n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
-        print('number of params:', n_parameters)
+        logger.info('number of params: %d', n_parameters)
         param_dicts = get_param_dict(args, model_without_ddp)
 
         param_dicts = [p for p in param_dicts if p['params'].requires_grad]
@@ -265,11 +265,11 @@ class Model:
         output_dir = Path(args.output_dir)
         
         if  utils.is_main_process():
-            print("Get benchmark")
+            logger.info("Get benchmark")
             if args.do_benchmark:
                 benchmark_model = copy.deepcopy(model_without_ddp)
                 bm = benchmark(benchmark_model.float(), dataset_val, output_dir)
-                print(json.dumps(bm, indent=2))
+                logger.info(json.dumps(bm, indent=2))
                 del benchmark_model
         
         if args.resume:
@@ -301,15 +301,15 @@ class Model:
             schedules['do'] = drop_scheduler(
                 args.dropout, args.epochs, num_training_steps_per_epoch,
                 args.cutoff_epoch, args.drop_mode, args.drop_schedule)
-            print("Min DO = %.7f, Max DO = %.7f" % (min(schedules['do']), max(schedules['do'])))
+            logger.info("Min DO = %.7f, Max DO = %.7f", min(schedules['do']), max(schedules['do']))
 
         if args.drop_path > 0:
             schedules['dp'] = drop_scheduler(
                 args.drop_path, args.epochs, num_training_steps_per_epoch,
                 args.cutoff_epoch, args.drop_mode, args.drop_schedule)
-            print("Min DP = %.7f, Max DP = %.7f" % (min(schedules['dp']), max(schedules['dp'])))
+            logger.info("Min DP = %.7f, Max DP = %.7f", min(schedules['dp']), max(schedules['dp']))
 
-        print("Start training")
+        logger.info("Start training")
         start_time = time.time()
         best_map_holder = BestMetricHolder(use_ema=args.use_ema)
         best_map_5095 = 0
@@ -430,7 +430,7 @@ class Model:
                 callback(log_stats)
 
             if self.stop_early:
-                print(f"Early stopping requested, stopping at epoch {epoch}")
+                logger.info(f"Early stopping requested, stopping at epoch {epoch}")
                 break
 
         best_is_ema = best_map_ema_5095 > best_map_5095
@@ -463,8 +463,8 @@ class Model:
 
             total_time = time.time() - start_time
             total_time_str = str(datetime.timedelta(seconds=int(total_time)))
-            print('Training time {}'.format(total_time_str))
-            print('Results saved to {}'.format(output_dir / "results.json"))
+            logger.info('Training time %s', total_time_str)
+            logger.info('Results saved to %s', output_dir / "results.json")
         
         if best_is_ema:
             self.model = self.ema_m.module
@@ -475,11 +475,11 @@ class Model:
     
     def export(self, output_dir="output", infer_dir=None, simplify=False,  backbone_only=False, opset_version=17, verbose=True, force=False, shape=None, batch_size=1, **kwargs):
         """Export the trained model to ONNX format"""
-        print(f"Exporting model to ONNX format")
+        logger.info("Exporting model to ONNX format")
         try:
             from rfdetr.deploy.export import export_onnx, onnx_simplify, make_infer_image
         except ImportError:
-            print("It seems some dependencies for ONNX export are missing. Please run `pip install rfdetr[onnxexport]` and try again.")
+            logger.error("It seems some dependencies for ONNX export are missing. Please run `pip install rfdetr[onnxexport]` and try again.")
             raise
 
 
@@ -503,12 +503,12 @@ class Model:
         with torch.no_grad():
             if backbone_only:
                 features = model(input_tensors)
-                print(f"PyTorch inference output shape: {features.shape}")
+                logger.info(f"PyTorch inference output shape: {features.shape}")
             else:
                 outputs = model(input_tensors)
                 dets = outputs['pred_boxes']
                 labels = outputs['pred_logits']
-                print(f"PyTorch inference output shapes - Boxes: {dets.shape}, Labels: {labels.shape}")
+                logger.info(f"PyTorch inference output shapes - Boxes: {dets.shape}, Labels: {labels.shape}")
         model.cpu()
         input_tensors = input_tensors.cpu()
 
@@ -525,7 +525,7 @@ class Model:
             opset_version=opset_version
         )
         
-        print(f"Successfully exported ONNX model to: {output_file}")
+        logger.info(f"Successfully exported ONNX model to: {output_file}")
 
         if simplify:
             sim_output_file = onnx_simplify(
@@ -534,9 +534,9 @@ class Model:
                 input_tensors=input_tensors,
                 force=force
             )
-            print(f"Successfully simplified ONNX model to: {sim_output_file}")
+            logger.info(f"Successfully simplified ONNX model to: {sim_output_file}")
         
-        print("ONNX export completed successfully")
+        logger.info("ONNX export completed successfully")
         self.model = self.model.to(device)
             
 
@@ -620,7 +620,7 @@ if __name__ == '__main__':
         from deploy.export import main as export_main
         if args.batch_size != 1:
             config['batch_size'] = 1
-            print(f"Only batch_size 1 is supported for onnx export, \
+            logger.warning(f"Only batch_size 1 is supported for onnx export, \
                  but got batchsize = {args.batch_size}. batch_size is forcibly set to 1.")
         export_main(**config)
 
