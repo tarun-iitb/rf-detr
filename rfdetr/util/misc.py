@@ -296,24 +296,6 @@ def get_sha() -> Optional[dict[str, str]]:
         return None
 
 
-def get_version(package_name: str = 'rfdetr') -> Optional[str]:
-    """Get the current version of the specified package.
-    
-    Args:
-        package_name (str): The name of the package to get the version for.
-            Defaults to 'rfdetr'.
-    
-    Returns:
-        str or None: The version string of the specified package.
-            Returns None if version cannot be determined.
-    """
-    try:
-        import pkg_resources
-        return pkg_resources.get_distribution(package_name).version
-    except Exception:
-        return None
-
-
 def collate_fn(batch):
     batch = list(zip(*batch))
     batch[0] = nested_tensor_from_tensor_list(batch[0])
