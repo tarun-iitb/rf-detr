@@ -12,7 +12,6 @@ export ONNX model and TensorRT engine for deployment
 """
 import os
 import random
-import re
 import subprocess
 
 import numpy as np
@@ -20,11 +19,11 @@ import onnx
 import onnxsim
 import torch
 import torch.nn as nn
-import wandb
 from PIL import Image
 
 import rfdetr.datasets.transforms as T
 from rfdetr.deploy._onnx import OnnxOptimizer
+import re
 from rfdetr.models import build_model
 from rfdetr.util.logger import get_logger
 from rfdetr.util.misc import get_sha, get_rank
@@ -147,8 +146,6 @@ def trtexec(onnx_dir:str, args) -> None:
 
     output = run_command_shell(command, args.dry_run)
     stats = parse_trtexec_output(output.stdout)
-    if args.wandb:
-        wandb.log(stats, step=1)
 
 def parse_trtexec_output(output_text):
     logger.info(output_text)
@@ -235,8 +232,7 @@ def main(args):
 
     model, criterion, postprocessors = build_model(args)
     n_parameters = sum(p.numel() for p in model.parameters())
-    if args.wandb:
-        wandb.config.update({"n_parameters": n_parameters}, allow_val_change=True)
+    logger.info(f"number of parameters: {n_parameters}")
     logger.info(f"number of parameters: {n_parameters}")
     n_backbone_parameters = sum(p.numel() for p in model.backbone.parameters())
     logger.info(f"number of backbone parameters: {n_backbone_parameters}")
