@@ -98,6 +98,7 @@ class DinoV2(nn.Module):
         self._export = False
 
     def export(self):
+        print("exporting dinov2")
         if self._export:
             return
         self._export = True
@@ -145,10 +146,12 @@ class DinoV2(nn.Module):
         # Create a new Parameter with the new size
         old_interpolate_pos_encoding = self.encoder.embeddings.interpolate_pos_encoding
         def new_interpolate_pos_encoding(self_mod, embeddings, height, width):
+            print("new_interpolate_pos_encoding")
             num_patches = embeddings.shape[1] - 1
             num_positions = self_mod.position_embeddings.shape[1] - 1
             if num_patches == num_positions and height == width:
                 return self_mod.position_embeddings
+            raise ValueError("New shape is not supported")
             return old_interpolate_pos_encoding(embeddings, height, width)
 
         self.encoder.embeddings.position_embeddings = nn.Parameter(new_positions)

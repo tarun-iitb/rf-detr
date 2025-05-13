@@ -10,6 +10,7 @@
 import collections.abc
 import math
 from typing import Dict, List, Optional, Set, Tuple, Union
+import time
 
 import torch
 from torch import nn
@@ -1070,14 +1071,23 @@ class WindowedDinov2WithRegistersBackbone(WindowedDinov2WithRegistersPreTrainedM
         )
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
 
+        # t0 = time.time()
         embedding_output = self.embeddings(pixel_values)
+        # torch.cuda.synchronize()
+        # t1 = time.time()
+        # print(f"Time taken to embed: {t1 - t0} seconds")
 
+        # t0 = time.time()
         outputs = self.encoder(
             embedding_output, output_hidden_states=True, output_attentions=output_attentions, return_dict=return_dict
         )
+        # torch.cuda.synchronize()
+        # t1 = time.time()
+        # print(f"Time taken to encode: {t1 - t0} seconds")
 
         hidden_states = outputs.hidden_states if return_dict else outputs[1]
 
+        # t0 = time.time()
         feature_maps = ()
         for stage, hidden_state in zip(self.stage_names, hidden_states):
             if stage in self.out_features:
@@ -1107,6 +1117,10 @@ class WindowedDinov2WithRegistersBackbone(WindowedDinov2WithRegistersPreTrainedM
                     hidden_state = hidden_state.permute(0, 3, 1, 2).contiguous()
                 
                 feature_maps += (hidden_state,)
+
+        # torch.cuda.synchronize()
+        # t1 = time.time()
+        # print(f"Time taken to get feature maps: {t1 - t0} seconds")
 
         if not return_dict:
             if output_hidden_states:

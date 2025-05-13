@@ -25,6 +25,8 @@ from typing import Callable
 import torch
 import torch.nn.functional as F
 from torch import nn
+import torch_tensorrt
+import time
 
 from rfdetr.util import box_ops
 from rfdetr.util.misc import (NestedTensor, nested_tensor_from_tensor_list,
@@ -125,6 +127,9 @@ class LWDETR(nn.Module):
         for name, m in self.named_modules():
             if hasattr(m, "export") and isinstance(m.export, Callable) and hasattr(m, "_export") and not m._export:
                 m.export()
+        
+        # self.backbone = torch.compile(self.backbone, backend="torch_tensorrt")
+        # self.transformer = torch.compile(self.transformer, backend="torch_tensorrt")
 
     def forward(self, samples: NestedTensor, targets=None):
         """ The forward expects a NestedTensor, which consists of:
@@ -145,18 +150,22 @@ class LWDETR(nn.Module):
             samples = nested_tensor_from_tensor_list(samples)
         features, poss = self.backbone(samples)
 
-        srcs = []
-        masks = []
-        for l, feat in enumerate(features):
-            src, mask = feat.decompose()
-            srcs.append(src)
-            masks.append(mask)
-            assert mask is not None
+        # srcs = []
+        # masks = []
+        # for l, feat in enumerate(features):
+        #     src, mask = feat.decompose()
+        #     srcs.append(src)
+        #     masks.append(mask)
+        #     assert mask is not None
+        srcs = features
+        masks = None
 
         if self.training:
+            print("training")
             refpoint_embed_weight = self.refpoint_embed.weight
             query_feat_weight = self.query_feat.weight
         else:
+            print("inference")
             # only use one group in inference
             refpoint_embed_weight = self.refpoint_embed.weight[:self.num_queries]
             query_feat_weight = self.query_feat.weight[:self.num_queries]
@@ -192,13 +201,22 @@ class LWDETR(nn.Module):
         return out
 
     def forward_export(self, tensors):
+        # t0 = time.time()
         srcs, _, poss = self.backbone(tensors)
+        # torch.cuda.synchronize()
+        # t1 = time.time()
+        # print(f"Backbone time taken: {t1 - t0} seconds")
         # only use one group in inference
         refpoint_embed_weight = self.refpoint_embed.weight[:self.num_queries]
         query_feat_weight = self.query_feat.weight[:self.num_queries]
 
+        # t0 = time.time()
         hs, ref_unsigmoid, hs_enc, ref_enc = self.transformer(
             srcs, None, poss, refpoint_embed_weight, query_feat_weight)
+        # torch.cuda.synchronize()
+        # t1 = time.time()
+        # print(f"all the shapes: {srcs[0].shape}, {poss[0].shape}, {refpoint_embed_weight.shape}, {query_feat_weight.shape}")
+        # print(f"Transformer time taken: {t1 - t0} seconds")
 
         if self.bbox_reparam:
             outputs_coord_delta = self.bbox_embed(hs)

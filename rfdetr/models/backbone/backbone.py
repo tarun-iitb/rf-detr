@@ -118,29 +118,31 @@ class Backbone(BackboneBase):
         feats = self.encoder(tensor_list.tensors)
         feats = self.projector(feats)
         # x: [(B, C, H, W)]
-        out = []
-        for feat in feats:
-            m = tensor_list.mask
-            assert m is not None
-            mask = F.interpolate(m[None].float(), size=feat.shape[-2:]).to(torch.bool)[
-                0
-            ]
-            out.append(NestedTensor(feat, mask))
-        return out
+        # out = []
+        # for feat in feats:
+        #     mask = tensor_list.mask
+        #     assert mask is not None
+        #     # mask = F.interpolate(m[None].float(), size=feat.shape[-2:]).to(torch.bool)[
+        #     #     0
+        #     # ]
+        #     out.append(NestedTensor(feat, mask))
+        # return out
+        return feats
 
     def forward_export(self, tensors: torch.Tensor):
         feats = self.encoder(tensors)
         feats = self.projector(feats)
-        out_feats = []
-        out_masks = []
-        for feat in feats:
-            # x: [(B, C, H, W)]
-            b, _, h, w = feat.shape
-            out_masks.append(
-                torch.zeros((b, h, w), dtype=torch.bool, device=feat.device)
-            )
-            out_feats.append(feat)
-        return out_feats, out_masks
+        # out_feats = []
+        # out_masks = []
+        # for feat in feats:
+        #     # x: [(B, C, H, W)]
+        #     b, _, h, w = feat.shape
+        #     out_masks.append(
+        #         torch.zeros((b, h, w), dtype=torch.bool, device=feat.device)
+        #     )
+        #     out_feats.append(feat)
+        # return out_feats, out_masks
+        return feats
 
     def get_named_param_lr_pairs(self, args, prefix: str = "backbone.0"):
         num_layers = args.out_feature_indexes[-1] + 1

@@ -80,6 +80,7 @@ def gen_encoder_output_proposals(memory, memory_padding_mask, spatial_shapes, un
         - output_memory: bs, \sum{hw}, d_model
         - output_proposals: bs, \sum{hw}, 4
     """
+    memory_padding_mask = None
     N_, S_, C_ = memory.shape
     base_scale = 4.0
     proposals = []
@@ -189,37 +190,40 @@ class Transformer(nn.Module):
                 m._reset_parameters()
     
     def get_valid_ratio(self, mask):
-        _, H, W = mask.shape
-        valid_H = torch.sum(~mask[:, :, 0], 1)
-        valid_W = torch.sum(~mask[:, 0, :], 1)
-        valid_ratio_h = valid_H.float() / H
-        valid_ratio_w = valid_W.float() / W
-        valid_ratio = torch.stack([valid_ratio_w, valid_ratio_h], -1)
-        return valid_ratio
+        # _, H, W = mask.shape
+        # valid_H = torch.sum(~mask[:, :, 0], 1)
+        # valid_W = torch.sum(~mask[:, 0, :], 1)
+        # valid_ratio_h = valid_H.float() / H
+        # valid_ratio_w = valid_W.float() / W
+        # valid_ratio = torch.stack([valid_ratio_w, valid_ratio_h], -1)
+        return torch.tensor([1.0, 1.0])
+        # return valid_ratio
 
     def forward(self, srcs, masks, pos_embeds, refpoint_embed, query_feat):
         src_flatten = []
         mask_flatten = [] if masks is not None else None
-        lvl_pos_embed_flatten = []
+        # lvl_pos_embed_flatten = []
         spatial_shapes = []
-        valid_ratios = [] if masks is not None else None
-        for lvl, (src, pos_embed) in enumerate(zip(srcs, pos_embeds)):
+        # valid_ratios = [] if masks is not None else None
+        valid_ratios = torch.ones(len(srcs), 2, device=srcs[0].device)
+        # for lvl, (src, pos_embed) in enumerate(zip(srcs, pos_embeds)):
+        for lvl, src in enumerate(srcs):
             bs, c, h, w = src.shape
             spatial_shape = (h, w)
             spatial_shapes.append(spatial_shape)
 
             src = src.flatten(2).transpose(1, 2)                # bs, hw, c
-            pos_embed = pos_embed.flatten(2).transpose(1, 2)    # bs, hw, c
-            lvl_pos_embed_flatten.append(pos_embed)
+            # pos_embed = pos_embed.flatten(2).transpose(1, 2)    # bs, hw, c
+            # lvl_pos_embed_flatten.append(pos_embed)
             src_flatten.append(src)
             if masks is not None:
                 mask = masks[lvl].flatten(1)                    # bs, hw
                 mask_flatten.append(mask)
         memory = torch.cat(src_flatten, 1)    # bs, \sum{hxw}, c 
-        if masks is not None:
-            mask_flatten = torch.cat(mask_flatten, 1)   # bs, \sum{hxw}
-            valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], 1)
-        lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1) # bs, \sum{hxw}, c 
+        # if masks is not None:
+        #     mask_flatten = torch.cat(mask_flatten, 1)   # bs, \sum{hxw}
+        #     valid_ratios = torch.stack([self.get_valid_ratio(m) for m in masks], 1)
+        # lvl_pos_embed_flatten = torch.cat(lvl_pos_embed_flatten, 1) # bs, \sum{hxw}, c 
         spatial_shapes = torch.as_tensor(spatial_shapes, dtype=torch.long, device=memory.device)
         level_start_index = torch.cat((spatial_shapes.new_zeros((1, )), spatial_shapes.prod(1).cumsum(0)[:-1]))
         
@@ -286,7 +290,7 @@ class Transformer(nn.Module):
                 [refpoint_embed_ts_subset, refpoint_embed_subset], dim=-2)
 
         hs, references = self.decoder(tgt, memory, memory_key_padding_mask=mask_flatten,
-                          pos=lvl_pos_embed_flatten, refpoints_unsigmoid=refpoint_embed,
+                          pos=None, refpoints_unsigmoid=refpoint_embed,
                           level_start_index=level_start_index, 
                           spatial_shapes=spatial_shapes,
                           valid_ratios=valid_ratios.to(memory.dtype) if valid_ratios is not None else valid_ratios)
@@ -335,6 +339,21 @@ class TransformerDecoder(nn.Module):
             new_refpoints_unsigmoid = refpoints_unsigmoid + new_refpoints_delta
         return new_refpoints_unsigmoid
 
+    def get_reference(self, refpoints, valid_ratios):
+        # [num_queries, batch_size, 4]
+        obj_center = refpoints[..., :4]
+        
+        if self._export:
+            query_sine_embed = gen_sineembed_for_position(obj_center, self.d_model / 2) # bs, nq, 256*2 
+            refpoints_input = obj_center[:, :, None] # bs, nq, 1, 4
+        else:
+            refpoints_input = obj_center[:, :, None] \
+                                    * torch.cat([valid_ratios, valid_ratios], -1)[:, None] # bs, nq, nlevel, 4
+            query_sine_embed = gen_sineembed_for_position(
+                refpoints_input[:, :, 0, :], self.d_model / 2) # bs, nq, 256*2 
+        query_pos = self.ref_point_head(query_sine_embed)
+        return obj_center, refpoints_input, query_pos, query_sine_embed
+    
     def forward(self, tgt, memory,
                 tgt_mask: Optional[Tensor] = None,
                 memory_mask: Optional[Tensor] = None,
@@ -351,35 +370,20 @@ class TransformerDecoder(nn.Module):
         intermediate = []
         hs_refpoints_unsigmoid = [refpoints_unsigmoid]
         
-        def get_reference(refpoints):
-            # [num_queries, batch_size, 4]
-            obj_center = refpoints[..., :4]
-            
-            if self._export:
-                query_sine_embed = gen_sineembed_for_position(obj_center, self.d_model / 2) # bs, nq, 256*2 
-                refpoints_input = obj_center[:, :, None] # bs, nq, 1, 4
-            else:
-                refpoints_input = obj_center[:, :, None] \
-                                        * torch.cat([valid_ratios, valid_ratios], -1)[:, None] # bs, nq, nlevel, 4
-                query_sine_embed = gen_sineembed_for_position(
-                    refpoints_input[:, :, 0, :], self.d_model / 2) # bs, nq, 256*2 
-            query_pos = self.ref_point_head(query_sine_embed)
-            return obj_center, refpoints_input, query_pos, query_sine_embed
-        
         # always use init refpoints
         if self.lite_refpoint_refine:
             if self.bbox_reparam:
-                obj_center, refpoints_input, query_pos, query_sine_embed = get_reference(refpoints_unsigmoid)
+                obj_center, refpoints_input, query_pos, query_sine_embed = self.get_reference(refpoints_unsigmoid, valid_ratios)
             else:
-                obj_center, refpoints_input, query_pos, query_sine_embed = get_reference(refpoints_unsigmoid.sigmoid())
+                obj_center, refpoints_input, query_pos, query_sine_embed = self.get_reference(refpoints_unsigmoid.sigmoid(), valid_ratios)
 
         for layer_id, layer in enumerate(self.layers):
             # iter refine each layer
             if not self.lite_refpoint_refine:
                 if self.bbox_reparam:
-                    obj_center, refpoints_input, query_pos, query_sine_embed = get_reference(refpoints_unsigmoid)
+                    obj_center, refpoints_input, query_pos, query_sine_embed = self.get_reference(refpoints_unsigmoid, valid_ratios)
                 else:
-                    obj_center, refpoints_input, query_pos, query_sine_embed = get_reference(refpoints_unsigmoid.sigmoid())
+                    obj_center, refpoints_input, query_pos, query_sine_embed = self.get_reference(refpoints_unsigmoid.sigmoid(), valid_ratios)
 
             # For the first decoder layer, we do not apply transformation over p_s
             pos_transformation = 1
@@ -445,7 +449,7 @@ class TransformerDecoderLayer(nn.Module):
                  skip_self_attn=False):
         super().__init__()
         # Decoder Self-Attention
-        self.self_attn = MultiheadAttention(embed_dim=d_model, num_heads=sa_nhead, dropout=dropout, batch_first=True)
+        self.self_attn = nn.MultiheadAttention(embed_dim=d_model, num_heads=sa_nhead, dropout=dropout, batch_first=True)
         self.dropout1 = nn.Dropout(dropout)
         self.norm1 = nn.LayerNorm(d_model)
 
@@ -499,7 +503,8 @@ class TransformerDecoderLayer(nn.Module):
             v = torch.cat(v.split(num_queries // self.group_detr, dim=1), dim=0)
 
         tgt2 = self.self_attn(q, k, v, attn_mask=tgt_mask,
-                            key_padding_mask=tgt_key_padding_mask)[0]
+                            key_padding_mask=tgt_key_padding_mask,
+                            need_weights=False)[0]
         
         if self.training:
             tgt2 = torch.cat(tgt2.split(bs, dim=0), dim=1)

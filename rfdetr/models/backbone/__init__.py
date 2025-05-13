@@ -25,10 +25,11 @@ class Joiner(nn.Sequential):
     def forward(self, tensor_list: NestedTensor):
         """ """
         x = self[0](tensor_list)
-        pos = []
-        for x_ in x:
-            pos.append(self[1](x_, align_dim_orders=False).to(x_.tensors.dtype))
-        return x, pos
+        # pos = []
+        # for x_ in x:
+        #     pos.append(self[1](x_, align_dim_orders=False).to(x_.tensors.dtype))
+        # return x, pos
+        return x, None
 
     def export(self):
         self._export = True
@@ -44,11 +45,13 @@ class Joiner(nn.Sequential):
                 m.export()
 
     def forward_export(self, inputs: torch.Tensor):
-        feats, masks = self[0](inputs)
-        poss = []
-        for feat, mask in zip(feats, masks):
-            poss.append(self[1](mask, align_dim_orders=False).to(feat.dtype))
-        return feats, None, poss
+        # feats, masks = self[0](inputs)
+        # poss = []
+        # for feat, mask in zip(feats, masks):
+        #     poss.append(self[1](mask, align_dim_orders=False).to(feat.dtype))
+        # return feats, None, poss
+        feats = self[0](inputs)
+        return feats, None, None
 
 
 def build_backbone(

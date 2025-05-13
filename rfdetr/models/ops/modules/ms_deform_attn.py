@@ -114,8 +114,8 @@ class MSDeformAttn(nn.Module):
         assert (input_spatial_shapes[:, 0] * input_spatial_shapes[:, 1]).sum() == Len_in
 
         value = self.value_proj(input_flatten)
-        if input_padding_mask is not None:
-            value = value.masked_fill(input_padding_mask[..., None], float(0))
+        # if input_padding_mask is not None:
+        #     value = value.masked_fill(input_padding_mask[..., None], float(0))
 
         sampling_offsets = self.sampling_offsets(query).view(N, Len_q, self.n_heads, self.n_levels, self.n_points, 2)
         attention_weights = self.attention_weights(query).view(N, Len_q, self.n_heads, self.n_levels * self.n_points)

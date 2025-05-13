@@ -10,6 +10,7 @@ import os
 from collections import defaultdict
 from logging import getLogger
 from typing import Union, List
+import time
 
 import numpy as np
 import supervision as sv
@@ -195,10 +196,19 @@ class RFDETR:
 
         batch_tensor = torch.stack(processed_images)
 
-        with torch.inference_mode():
-            predictions = self.model.model(batch_tensor)
-            target_sizes = torch.tensor(orig_sizes, device=self.model.device)
-            results = self.model.postprocessors["bbox"](predictions, target_sizes=target_sizes)
+        # with torch.inference_mode(), torch.autocast(device_type=self.model.device.type, dtype=torch.float16, enabled=False):
+        # torch.cuda.synchronize()
+        t0 = time.time()
+        predictions = self.model.model(batch_tensor)
+        t1 = time.time()
+        print(f"Time taken: {t1 - t0} seconds")
+        if isinstance(predictions, tuple):
+            predictions = {
+                "pred_logits": predictions[1],
+                "pred_boxes": predictions[0]
+            }
+        target_sizes = torch.tensor(orig_sizes, device=self.model.device)
+        results = self.model.postprocessors["bbox"](predictions, target_sizes=target_sizes)
 
         detections_list = []
         for result in results:
@@ -212,9 +222,9 @@ class RFDETR:
             boxes = boxes[keep]
 
             detections = sv.Detections(
-                xyxy=boxes.cpu().numpy(),
-                confidence=scores.cpu().numpy(),
-                class_id=labels.cpu().numpy(),
+                xyxy=boxes.float().cpu().numpy(),
+                confidence=scores.float().cpu().numpy(),
+                class_id=labels.float().cpu().numpy(),
             )
             detections_list.append(detections)
 
