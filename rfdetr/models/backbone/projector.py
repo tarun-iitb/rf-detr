@@ -245,18 +245,18 @@ class MultiScaleProjector(nn.Module):
                 convention: "p<stage>", where stage has stride = 2 ** stage e.g.,
                 ["p2", "p3", ..., "p6"].
         """
-        num_features = len(x)
-        if self.survival_prob < 1.0 and self.training:
-            final_drop_prob = 1 - self.survival_prob
-            drop_p = np.random.uniform()
-            for i in range(1, num_features):
-                critical_drop_prob = i * (final_drop_prob / (num_features - 1))
-                if drop_p < critical_drop_prob:
-                    x[i][:] = 0
-        elif self.force_drop_last_n_features > 0:
-            for i in range(self.force_drop_last_n_features):
-                # don't do it inplace to ensure the compiler can optimize out the backbone layers
-                x[-(i+1)] = torch.zeros_like(x[-(i+1)])
+        # num_features = len(x)
+        # if self.survival_prob < 1.0 and self.training:
+        #     final_drop_prob = 1 - self.survival_prob
+        #     drop_p = np.random.uniform()
+        #     for i in range(1, num_features):
+        #         critical_drop_prob = i * (final_drop_prob / (num_features - 1))
+        #         if drop_p < critical_drop_prob:
+        #             x[i][:] = 0
+        # elif self.force_drop_last_n_features > 0:
+        #     for i in range(self.force_drop_last_n_features):
+        #         # don't do it inplace to ensure the compiler can optimize out the backbone layers
+        #         x[-(i+1)] = torch.zeros_like(x[-(i+1)])
                 
         results = []
         # x list of len(out_features_indexes)
