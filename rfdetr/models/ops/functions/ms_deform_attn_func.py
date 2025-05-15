@@ -30,10 +30,13 @@ def ms_deform_attn_core_pytorch(value, value_spatial_shapes, sampling_locations,
     # B, n_heads, head_dim, N
     B, n_heads, head_dim, _ = value.shape
     _, Len_q, n_heads, L, P, _ = sampling_locations.shape
-    value_list = value.split([H * W for H, W in value_spatial_shapes], dim=3)
+    shape_prods = torch.prod(value_spatial_shapes, dim=1)
+    value_list = value.split(shape_prods, dim=3)
     sampling_grids = 2 * sampling_locations - 1
     sampling_value_list = []
-    for lid_, (H, W) in enumerate(value_spatial_shapes):
+    for lid_ in range(value_spatial_shapes.shape[0]):
+        H = value_spatial_shapes[lid_, 0]
+        W = value_spatial_shapes[lid_, 1]
         # B, n_heads, head_dim, H, W
         value_l_ = value_list[lid_].view(B * n_heads, head_dim, H, W)
         # B, Len_q, n_heads, P, 2 -> B, n_heads, Len_q, P, 2 -> B*n_heads, Len_q, P, 2
