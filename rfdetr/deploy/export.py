@@ -67,14 +67,15 @@ def make_infer_image(infer_dir, shape, batch_size, device="cuda"):
     inps = torch.stack([inps for _ in range(batch_size)])
     return inps
 
-def export_onnx(output_dir, model, input_names, input_tensors, output_names, dynamic_axes, backbone_only=False, verbose=True, opset_version=17):
+def export_onnx(output_dir, model, input_names, input_tensors, output_names, dynamic_axes, backbone_only=False, verbose=False, opset_version=17):
     export_name = "backbone_model" if backbone_only else "inference_model"
     output_file = os.path.join(output_dir, f"{export_name}.onnx")
+
+    # print(model)
+    # print(type(model))
     
-    # Prepare model for export
-    if hasattr(model, "export"):
-        model.export()
-    
+    # if isinstance(model, torch._dynamo.eval_frame.OptimizedModel):
+    #     torch
     torch.onnx.export(
         model,
         input_tensors,

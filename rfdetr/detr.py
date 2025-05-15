@@ -17,6 +17,8 @@ import torch
 import torchvision.transforms.functional as F
 from PIL import Image
 
+torch.set_float32_matmul_precision('high')
+
 from rfdetr.config import RFDETRBaseConfig, RFDETRLargeConfig, TrainConfig, ModelConfig
 from rfdetr.main import Model, download_pretrain_weights
 from rfdetr.util.metrics import MetricsPlotSink, MetricsTensorBoardSink, MetricsWandBSink
@@ -33,6 +35,10 @@ class RFDETR:
         self.model = self.get_model(self.model_config)
         self.callbacks = defaultdict(list)
 
+        self.is_optimized_for_inference = False
+        self.has_warned_about_not_being_optimized_for_inference = False
+        self.has_compiled_model = False
+
     def maybe_download_pretrain_weights(self):
         download_pretrain_weights(self.model_config.pretrain_weights)
 
@@ -43,10 +49,29 @@ class RFDETR:
         config = self.get_train_config(**kwargs)
         self.train_from_config(config, **kwargs)
     
+    def optimize_for_inference(self, compile=True):
+
+        # TODO: apply these to a clone of the model so we have an 'optimized' model but can still train etc etc
+        self.model.model.eval()
+        self.model.model.export()
+
+        assert self.model.model.backbone[0]._export, "Backbone is not exported"
+
+        if compile:
+            # self.model.model = torch.compile(self.model.model)
+            self.model.compiled_model = torch.jit.trace(self.model.model, torch.randn(1, 3, 560, 560, device=self.model.device))
+            self.has_compiled_model = True
+        
+        self.is_optimized_for_inference = True
+    
     def export(self, **kwargs):
+        if not self.is_optimized_for_inference:
+            logger.warning("Model is not optimized for inference. ONNX latency may be higher than expected. You can optimize the model for inference by calling model.optimize_for_inference().")
         self.model.export(**kwargs)
 
     def train_from_config(self, config: TrainConfig, **kwargs):
+        assert not self.is_optimized_for_inference, "Once optimized for inference, the model cannot be trained."
+        
         with open(
             os.path.join(config.dataset_dir, "train", "_annotations.coco.json"), "r"
         ) as f:
@@ -158,6 +183,10 @@ class RFDETR:
         """
         self.model.model.eval()
 
+        if not self.is_optimized_for_inference and not self.has_warned_about_not_being_optimized_for_inference:
+            logger.warning("Model is not optimized for inference. ONNX latency may be higher than expected. You can optimize the model for inference by calling model.optimize_for_inference().")
+            self.has_warned_about_not_being_optimized_for_inference = True
+
         if not isinstance(images, list):
             images = [images]
 
@@ -196,7 +225,12 @@ class RFDETR:
         batch_tensor = torch.stack(processed_images)
 
         with torch.inference_mode():
-            predictions = self.model.model(batch_tensor)
+            predictions = self.model.model(batch_tensor) if not self.has_compiled_model else self.model.compiled_model(batch_tensor)
+            if isinstance(predictions, tuple):
+                predictions = {
+                    "pred_logits": predictions[1],
+                    "pred_boxes": predictions[0]
+                }
             target_sizes = torch.tensor(orig_sizes, device=self.model.device)
             results = self.model.postprocessors["bbox"](predictions, target_sizes=target_sizes)
 

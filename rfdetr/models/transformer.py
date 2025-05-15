@@ -41,7 +41,7 @@ class MLP(nn.Module):
         return x
 
 
-def gen_sineembed_for_position(pos_tensor, dim=128):
+def gen_sineembed_for_position(pos_tensor: Tensor, dim: int=128) -> Tensor:
     # n_query, bs, _ = pos_tensor.size()
     # sineembed_tensor = torch.zeros(n_query, bs, 256)
     scale = 2 * math.pi
@@ -70,7 +70,7 @@ def gen_sineembed_for_position(pos_tensor, dim=128):
     return pos
 
 
-def gen_encoder_output_proposals(memory, memory_padding_mask, spatial_shapes, unsigmoid=True):
+def gen_encoder_output_proposals(memory: Tensor, memory_padding_mask: Tensor, spatial_shapes: Tensor, unsigmoid: bool=True):
     """
     Input:
         - memory: bs, \sum{hw}, d_model
@@ -84,7 +84,9 @@ def gen_encoder_output_proposals(memory, memory_padding_mask, spatial_shapes, un
     base_scale = 4.0
     proposals = []
     _cur = 0
-    for lvl, (H_, W_) in enumerate(spatial_shapes):
+    for lvl in range(spatial_shapes.shape[0]):
+        H_ = spatial_shapes[lvl, 0]
+        W_ = spatial_shapes[lvl, 1]
         if memory_padding_mask is not None:
             mask_flatten_ = memory_padding_mask[:, _cur:(_cur + H_ * W_)].view(N_, H_, W_, 1)
             valid_H = torch.sum(~mask_flatten_[:, :, 0, 0], 1)
@@ -201,10 +203,11 @@ class Transformer(nn.Module):
         src_flatten = []
         mask_flatten = [] if masks is not None else None
         lvl_pos_embed_flatten = []
-        spatial_shapes = []
+        spatial_shapes: list[tuple[int, int]] = []
         valid_ratios = [] if masks is not None else None
+        bs = srcs[0].shape[0]
         for lvl, (src, pos_embed) in enumerate(zip(srcs, pos_embeds)):
-            bs, c, h, w = src.shape
+            _, c, h, w = src.shape
             spatial_shape = (h, w)
             spatial_shapes.append(spatial_shape)
 
@@ -229,41 +232,64 @@ class Transformer(nn.Module):
             # group detr for first stage
             refpoint_embed_ts, memory_ts, boxes_ts = [], [], []
             group_detr = self.group_detr if self.training else 1
-            for g_idx in range(group_detr):
-                output_memory_gidx = self.enc_output_norm[g_idx](self.enc_output[g_idx](output_memory))
-    
-                enc_outputs_class_unselected_gidx = self.enc_out_class_embed[g_idx](output_memory_gidx)
-                if self.bbox_reparam:
-                    enc_outputs_coord_delta_gidx = self.enc_out_bbox_embed[g_idx](output_memory_gidx)
-                    enc_outputs_coord_cxcy_gidx = enc_outputs_coord_delta_gidx[...,
-                        :2] * output_proposals[..., 2:] + output_proposals[..., :2]
-                    enc_outputs_coord_wh_gidx = enc_outputs_coord_delta_gidx[..., 2:].exp() * output_proposals[..., 2:]
-                    enc_outputs_coord_unselected_gidx = torch.concat(
-                        [enc_outputs_coord_cxcy_gidx, enc_outputs_coord_wh_gidx], dim=-1)
-                else:
-                    enc_outputs_coord_unselected_gidx = self.enc_out_bbox_embed[g_idx](
-                        output_memory_gidx) + output_proposals # (bs, \sum{hw}, 4) unsigmoid
+            # have to do this to play nice with torchscript
+            # if self.training:
+            #     enc_output_norm = self.enc_output_norm
+            #     enc_output = self.enc_output
+            #     enc_out_class_embed = self.enc_out_class_embed
+            #     enc_out_bbox_embed = self.enc_out_bbox_embed
+            # else:
+            # enc_output_norm = [self.enc_output_norm[0]]
+            # enc_output = [self.enc_output[0]]
+            # enc_out_class_embed = [self.enc_out_class_embed[0]]
+            # enc_out_bbox_embed = [self.enc_out_bbox_embed[0]]
+            # for g_idx in range(group_detr):
+            # for g_enc_output_norm, g_enc_output, g_enc_out_class_embed, g_enc_out_bbox_embed in zip(
+            #     enc_output_norm, enc_output, enc_out_class_embed, enc_out_bbox_embed
+            # ):
+                # print(g_enc_output_norm, g_enc_output, g_enc_out_class_embed, g_enc_out_bbox_embed)
+            g_enc_output_norm = self.enc_output_norm[0]
+            g_enc_output = self.enc_output[0]
+            g_enc_out_class_embed = self.enc_out_class_embed[0]
+            g_enc_out_bbox_embed = self.enc_out_bbox_embed[0]
+            output_memory_gidx = g_enc_output_norm(g_enc_output(output_memory))
 
-                topk = min(self.num_queries, enc_outputs_class_unselected_gidx.shape[-2])
-                topk_proposals_gidx = torch.topk(enc_outputs_class_unselected_gidx.max(-1)[0], topk, dim=1)[1] # bs, nq
-                
-                refpoint_embed_gidx_undetach = torch.gather(
-                    enc_outputs_coord_unselected_gidx, 1, topk_proposals_gidx.unsqueeze(-1).repeat(1, 1, 4)) # unsigmoid
-                # for decoder layer, detached as initial ones, (bs, nq, 4)
-                refpoint_embed_gidx = refpoint_embed_gidx_undetach.detach()
-                
-                # get memory tgt
-                tgt_undetach_gidx = torch.gather(
-                    output_memory_gidx, 1, topk_proposals_gidx.unsqueeze(-1).repeat(1, 1, self.d_model))
-                
-                refpoint_embed_ts.append(refpoint_embed_gidx)
-                memory_ts.append(tgt_undetach_gidx)
-                boxes_ts.append(refpoint_embed_gidx_undetach)
+            enc_outputs_class_unselected_gidx = g_enc_out_class_embed(output_memory_gidx)
+            if self.bbox_reparam:
+                enc_outputs_coord_delta_gidx = g_enc_out_bbox_embed(output_memory_gidx)
+                enc_outputs_coord_cxcy_gidx = enc_outputs_coord_delta_gidx[...,
+                    :2] * output_proposals[..., 2:] + output_proposals[..., :2]
+                enc_outputs_coord_wh_gidx = enc_outputs_coord_delta_gidx[..., 2:].exp() * output_proposals[..., 2:]
+                enc_outputs_coord_unselected_gidx = torch.concat(
+                    [enc_outputs_coord_cxcy_gidx, enc_outputs_coord_wh_gidx], dim=-1)
+            else:
+                enc_outputs_coord_unselected_gidx = g_enc_out_bbox_embed(
+                    output_memory_gidx) + output_proposals # (bs, \sum{hw}, 4) unsigmoid
+
+            topk = min(self.num_queries, enc_outputs_class_unselected_gidx.shape[-2])
+            topk_proposals_gidx = torch.topk(enc_outputs_class_unselected_gidx.max(-1)[0], topk, dim=1)[1] # bs, nq
+            
+            refpoint_embed_gidx_undetach = torch.gather(
+                enc_outputs_coord_unselected_gidx, 1, topk_proposals_gidx.unsqueeze(-1).repeat(1, 1, 4)) # unsigmoid
+            # for decoder layer, detached as initial ones, (bs, nq, 4)
+            refpoint_embed_gidx = refpoint_embed_gidx_undetach.detach()
+            
+            # get memory tgt
+            tgt_undetach_gidx = torch.gather(
+                output_memory_gidx, 1, topk_proposals_gidx.unsqueeze(-1).repeat(1, 1, self.d_model))
+            
+            refpoint_embed_ts.append(refpoint_embed_gidx)
+            memory_ts.append(tgt_undetach_gidx)
+            boxes_ts.append(refpoint_embed_gidx_undetach)
             # concat on dim=1, the nq dimension, (bs, nq, d) --> (bs, nq, d)
             refpoint_embed_ts = torch.cat(refpoint_embed_ts, dim=1)
             # (bs, nq, d)
             memory_ts = torch.cat(memory_ts, dim=1)#.transpose(0, 1)
             boxes_ts = torch.cat(boxes_ts, dim=1)#.transpose(0, 1)
+        else:
+            refpoint_embed_ts = torch.zeros_like(refpoint_embed)
+            memory_ts = torch.zeros_like(query_feat)
+            boxes_ts = torch.zeros_like(refpoint_embed)
         
         tgt = query_feat.unsqueeze(0).repeat(bs, 1, 1)
         refpoint_embed = refpoint_embed.unsqueeze(0).repeat(bs, 1, 1)
@@ -334,6 +360,21 @@ class TransformerDecoder(nn.Module):
         else:
             new_refpoints_unsigmoid = refpoints_unsigmoid + new_refpoints_delta
         return new_refpoints_unsigmoid
+    
+    def get_reference(self, refpoints, valid_ratios):
+        # [num_queries, batch_size, 4]
+        obj_center = refpoints[..., :4]
+
+        if self._export:
+            query_sine_embed = gen_sineembed_for_position(obj_center, self.d_model // 2) # bs, nq, 256*2 
+            refpoints_input = obj_center[:, :, None] # bs, nq, 1, 4
+        else:
+            refpoints_input = obj_center[:, :, None] \
+                                    * torch.cat([valid_ratios, valid_ratios], -1)[:, None] # bs, nq, nlevel, 4
+            query_sine_embed = gen_sineembed_for_position(
+                refpoints_input[:, :, 0, :], self.d_model // 2) # bs, nq, 256*2 
+        query_pos = self.ref_point_head(query_sine_embed)
+        return obj_center, refpoints_input, query_pos, query_sine_embed
 
     def forward(self, tgt, memory,
                 tgt_mask: Optional[Tensor] = None,
@@ -341,45 +382,31 @@ class TransformerDecoder(nn.Module):
                 tgt_key_padding_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
-                refpoints_unsigmoid: Optional[Tensor] = None,
+                refpoints_unsigmoid: Tensor = None,
                 # for memory
-                level_start_index: Optional[Tensor] = None, # num_levels
-                spatial_shapes: Optional[Tensor] = None, # bs, num_levels, 2
-                valid_ratios: Optional[Tensor] = None):
+                level_start_index: Tensor = None, # num_levels
+                spatial_shapes: Tensor = None, # bs, num_levels, 2
+                valid_ratios: Tensor = None):
         output = tgt
 
         intermediate = []
         hs_refpoints_unsigmoid = [refpoints_unsigmoid]
-        
-        def get_reference(refpoints):
-            # [num_queries, batch_size, 4]
-            obj_center = refpoints[..., :4]
-            
-            if self._export:
-                query_sine_embed = gen_sineembed_for_position(obj_center, self.d_model / 2) # bs, nq, 256*2 
-                refpoints_input = obj_center[:, :, None] # bs, nq, 1, 4
-            else:
-                refpoints_input = obj_center[:, :, None] \
-                                        * torch.cat([valid_ratios, valid_ratios], -1)[:, None] # bs, nq, nlevel, 4
-                query_sine_embed = gen_sineembed_for_position(
-                    refpoints_input[:, :, 0, :], self.d_model / 2) # bs, nq, 256*2 
-            query_pos = self.ref_point_head(query_sine_embed)
-            return obj_center, refpoints_input, query_pos, query_sine_embed
+
+        assert self.lite_refpoint_refine, "Disabling lite_refpoint_refine is not supported"
+        assert self.return_intermediate, "Disabling return_intermediate is not supported"
         
         # always use init refpoints
-        if self.lite_refpoint_refine:
-            if self.bbox_reparam:
-                obj_center, refpoints_input, query_pos, query_sine_embed = get_reference(refpoints_unsigmoid)
-            else:
-                obj_center, refpoints_input, query_pos, query_sine_embed = get_reference(refpoints_unsigmoid.sigmoid())
+        if self.bbox_reparam:
+            obj_center, refpoints_input, query_pos, query_sine_embed = self.get_reference(refpoints_unsigmoid, valid_ratios)
+        else:
+            obj_center, refpoints_input, query_pos, query_sine_embed = self.get_reference(refpoints_unsigmoid.sigmoid(), valid_ratios)
 
         for layer_id, layer in enumerate(self.layers):
             # iter refine each layer
-            if not self.lite_refpoint_refine:
-                if self.bbox_reparam:
-                    obj_center, refpoints_input, query_pos, query_sine_embed = get_reference(refpoints_unsigmoid)
-                else:
-                    obj_center, refpoints_input, query_pos, query_sine_embed = get_reference(refpoints_unsigmoid.sigmoid())
+            if self.bbox_reparam:
+                obj_center, refpoints_input, query_pos, query_sine_embed = self.get_reference(refpoints_unsigmoid, valid_ratios)
+            else:
+                obj_center, refpoints_input, query_pos, query_sine_embed = self.get_reference(refpoints_unsigmoid.sigmoid(), valid_ratios)
 
             # For the first decoder layer, we do not apply transformation over p_s
             pos_transformation = 1
@@ -396,45 +423,32 @@ class TransformerDecoder(nn.Module):
                            spatial_shapes=spatial_shapes,
                            level_start_index=level_start_index)
 
-            if not self.lite_refpoint_refine:
-                # box iterative update
-                new_refpoints_delta = self.bbox_embed(output)
-                new_refpoints_unsigmoid = self.refpoints_refine(refpoints_unsigmoid, new_refpoints_delta)
-                if layer_id != self.num_layers - 1:
-                    hs_refpoints_unsigmoid.append(new_refpoints_unsigmoid)
-                refpoints_unsigmoid = new_refpoints_unsigmoid.detach()
-
-            if self.return_intermediate:
-                intermediate.append(self.norm(output))
+            intermediate.append(self.norm(output))
 
         if self.norm is not None:
             output = self.norm(output)
-            if self.return_intermediate:
-                intermediate.pop()
-                intermediate.append(output)
+            intermediate.pop()
+            intermediate.append(output)
 
-        if self.return_intermediate:
-            if self._export:
-                # to shape: B, N, C
-                hs = intermediate[-1]
-                if self.bbox_embed is not None:
-                    ref = hs_refpoints_unsigmoid[-1]
-                else:
-                    ref = refpoints_unsigmoid
-                return hs, ref
-            # box iterative update
+        if self._export:
+            # to shape: B, N, C
+            hs = intermediate[-1]
             if self.bbox_embed is not None:
-                return [
-                    torch.stack(intermediate),
-                    torch.stack(hs_refpoints_unsigmoid),
-                ]
+                ref = hs_refpoints_unsigmoid[-1]
             else:
-                return [
-                    torch.stack(intermediate), 
-                    refpoints_unsigmoid.unsqueeze(0)
-                ]
-
-        return output.unsqueeze(0)
+                ref = refpoints_unsigmoid
+            return [hs, ref]
+        # box iterative update
+        if self.bbox_embed is not None:
+            return [
+                torch.stack(intermediate),
+                torch.stack(hs_refpoints_unsigmoid),
+            ]
+        else:
+            return [
+                torch.stack(intermediate), 
+                refpoints_unsigmoid.unsqueeze(0)
+            ]
 
 
 class TransformerDecoderLayer(nn.Module):
@@ -445,7 +459,7 @@ class TransformerDecoderLayer(nn.Module):
                  skip_self_attn=False):
         super().__init__()
         # Decoder Self-Attention
-        self.self_attn = MultiheadAttention(embed_dim=d_model, num_heads=sa_nhead, dropout=dropout, batch_first=True)
+        self.self_attn = nn.MultiheadAttention(embed_dim=d_model, num_heads=sa_nhead, dropout=dropout, batch_first=True)
         self.dropout1 = nn.Dropout(dropout)
         self.norm1 = nn.LayerNorm(d_model)
 
@@ -479,12 +493,12 @@ class TransformerDecoderLayer(nn.Module):
                      tgt_key_padding_mask: Optional[Tensor] = None,
                      memory_key_padding_mask: Optional[Tensor] = None,
                      pos: Optional[Tensor] = None,
-                     query_pos: Optional[Tensor] = None,
-                     query_sine_embed = None,
-                     is_first = False,
-                     reference_points = None,
-                     spatial_shapes=None,
-                     level_start_index=None,
+                     query_pos: Tensor = None,
+                     query_sine_embed: Tensor = None,
+                     is_first: bool = False,
+                     reference_points: Tensor = None,
+                     spatial_shapes: Tensor = None,
+                     level_start_index: Tensor = None,
                      ):
         bs, num_queries, _ = tgt.shape
         
@@ -499,7 +513,8 @@ class TransformerDecoderLayer(nn.Module):
             v = torch.cat(v.split(num_queries // self.group_detr, dim=1), dim=0)
 
         tgt2 = self.self_attn(q, k, v, attn_mask=tgt_mask,
-                            key_padding_mask=tgt_key_padding_mask)[0]
+                            key_padding_mask=tgt_key_padding_mask,
+                            need_weights=False)[0]
         
         if self.training:
             tgt2 = torch.cat(tgt2.split(bs, dim=0), dim=1)
@@ -532,12 +547,12 @@ class TransformerDecoderLayer(nn.Module):
                 tgt_key_padding_mask: Optional[Tensor] = None,
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
-                query_pos: Optional[Tensor] = None,
-                query_sine_embed = None,
-                is_first = False,
-                reference_points = None,
-                spatial_shapes=None,
-                level_start_index=None):
+                query_pos: Tensor = None,
+                query_sine_embed: Tensor = None,
+                is_first: bool = False,
+                reference_points: Tensor = None,
+                spatial_shapes: Tensor = None,
+                level_start_index: Tensor = None):
         return self.forward_post(tgt, memory, tgt_mask, memory_mask,
                                  tgt_key_padding_mask, memory_key_padding_mask, pos, query_pos, 
                                  query_sine_embed, is_first,

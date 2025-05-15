@@ -27,6 +27,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn.init import xavier_uniform_, constant_
+from torch import Tensor
+from typing import Optional
 
 from ..functions import ms_deform_attn_core_pytorch
 
@@ -96,8 +98,8 @@ class MSDeformAttn(nn.Module):
         xavier_uniform_(self.output_proj.weight.data)
         constant_(self.output_proj.bias.data, 0.)
 
-    def forward(self, query, reference_points, input_flatten, input_spatial_shapes,
-                input_level_start_index, input_padding_mask=None):
+    def forward(self, query: Tensor, reference_points: Tensor, input_flatten: Tensor, input_spatial_shapes: Tensor,
+                input_level_start_index: Tensor, input_padding_mask: Optional[Tensor] = None):
         """
         :param query                       (N, Length_{query}, C)
         :param reference_points            (N, Length_{query}, n_levels, 2), range in [0, 1], top-left (0,0), bottom-right (1, 1), including padding area

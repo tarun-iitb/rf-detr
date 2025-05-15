@@ -149,13 +149,15 @@ class DinoV2(nn.Module):
             num_positions = self_mod.position_embeddings.shape[1] - 1
             if num_patches == num_positions and height == width:
                 return self_mod.position_embeddings
-            return old_interpolate_pos_encoding(embeddings, height, width)
+            raise ValueError("New shape is not supported")
+            # return old_interpolate_pos_encoding(embeddings, height, width)
 
         self.encoder.embeddings.position_embeddings = nn.Parameter(new_positions)
         self.encoder.embeddings.interpolate_pos_encoding = types.MethodType(
             new_interpolate_pos_encoding, 
             self.encoder.embeddings
         )
+        # self.encoder.embeddings.interpolate_pos_encoding = new_interpolate_pos_encoding
 
     def forward(self, x):
         assert x.shape[2] % 14 == 0 and x.shape[3] % 14 == 0, f"Dinov2 requires input shape to be divisible by 14, but got {x.shape}"

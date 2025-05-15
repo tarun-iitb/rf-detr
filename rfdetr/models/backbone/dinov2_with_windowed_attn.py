@@ -231,6 +231,12 @@ class WindowedDinov2WithRegistersEmbeddings(nn.Module):
         self.patch_size = config.patch_size
         self.config = config
 
+        self._export = False
+    
+    def export(self):
+        print("setting expprt to true for dinov2_with_windowed_attn embeddings")
+        self._export = True
+
     def interpolate_pos_encoding(self, embeddings: torch.Tensor, height: int, width: int) -> torch.Tensor:
         """
         This method allows to interpolate the pre-trained position encodings, to be able to use the model on higher
@@ -245,7 +251,8 @@ class WindowedDinov2WithRegistersEmbeddings(nn.Module):
         num_positions = self.position_embeddings.shape[1] - 1
 
         # Skip interpolation for matching dimensions (unless tracing)
-        if not torch.jit.is_tracing() and num_patches == num_positions and height == width:
+        # if not torch.jit.is_tracing() and num_patches == num_positions and height == width:
+        if self._export:
             return self.position_embeddings
 
         # Handle class token and patch embeddings separately

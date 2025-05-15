@@ -473,7 +473,7 @@ class Model:
         for callback in callbacks["on_train_end"]:
             callback()
     
-    def export(self, output_dir="output", infer_dir=None, simplify=False,  backbone_only=False, opset_version=17, verbose=True, force=False, shape=None, batch_size=1, **kwargs):
+    def export(self, output_dir="output", infer_dir=None, simplify=False,  backbone_only=False, opset_version=17, verbose=False, force=False, shape=None, batch_size=1, **kwargs):
         """Export the trained model to ONNX format"""
         print(f"Exporting model to ONNX format")
         try:
@@ -506,10 +506,14 @@ class Model:
                 print(f"PyTorch inference output shape: {features.shape}")
             else:
                 outputs = model(input_tensors)
-                dets = outputs['pred_boxes']
-                labels = outputs['pred_logits']
+                if isinstance(outputs, tuple):
+                    dets = outputs[0]
+                    labels = outputs[1]
+                else:
+                    dets = outputs['pred_boxes']
+                    labels = outputs['pred_logits']
                 print(f"PyTorch inference output shapes - Boxes: {dets.shape}, Labels: {labels.shape}")
-        model.cpu()
+        model = model.cpu()
         input_tensors = input_tensors.cpu()
 
         # Export to ONNX
@@ -828,8 +832,8 @@ def populate_args(
     do_benchmark=False,
     
     # Drop parameters
-    dropout=0,
-    drop_path=0,
+    dropout=0.0,
+    drop_path=0.0,
     drop_mode='standard',
     drop_schedule='constant',
     cutoff_epoch=0,
